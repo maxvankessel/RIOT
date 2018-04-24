@@ -113,6 +113,23 @@ ifneq (,$(filter netdev_tap,$(USEMODULE)))
   USEMODULE += iolist
 endif
 
+ifneq (,$(filter gnrc_ppp,$(USEMODULE)))
+  USEMODULE += gnrc_netdev
+  USEMODULE += gnrc_netdev_msg_handler
+endif
+
+ifneq (,$(filter gnrc_zep,$(USEMODULE)))
+  USEMODULE += hashes
+  USEMODULE += ieee802154
+  USEMODULE += gnrc_udp
+  USEMODULE += random
+  USEMODULE += xtimer
+endif
+
+ifneq (,$(filter gcoap,$(USEMODULE)))
+  USEMODULE += gnrc_udp
+endif
+
 ifneq (,$(filter gnrc_tftp,$(USEMODULE)))
   USEMODULE += gnrc_udp
   USEMODULE += xtimer
