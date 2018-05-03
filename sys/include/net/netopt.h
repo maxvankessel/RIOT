@@ -539,6 +539,19 @@ typedef enum {
      */
     NETOPT_BLE_CTX,
 
+    /**
+     * @brief set the Async Control Character Map for reception
+     *
+     * Expects a pointer to a network_uint32_t containing the ACCM
+     */
+    NETOPT_PPP_ACCM_RX,
+    /**
+     * @brief set the Async Control Character Map for transmission
+     *
+     * Expects a pointer to a network_uint32_t containing the ACCM
+     */
+    NETOPT_PPP_ACCM_TX,
+
     /* add more options if needed */
 
     /**
