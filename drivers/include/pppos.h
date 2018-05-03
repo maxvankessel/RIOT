@@ -44,6 +44,10 @@ extern "C" {
 #define PPPOS_BUFSIZE (2048U)
 #endif
 
+#ifndef PPPOS_MAX_IDLE_TIME_MS
+#define PPPOS_MAX_IDLE_TIME_MS (100 * US_PER_MS)
+#endif
+
 enum {
     PPP_RX_IDLE = 0,
     PPP_RX_STARTED,
@@ -82,6 +86,8 @@ typedef struct {
         uint32_t rx;
         uint32_t tx;
     } accm;
+
+    uint32_t last_xmit;
 
 } pppos_t;
 
