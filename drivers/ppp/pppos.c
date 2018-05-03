@@ -18,7 +18,9 @@
 
 #include "log.h"
 #include "pppos.h"
+#include "xtimer.h"
 
+#include "net/ppp/hdr.h"
 #include "net/hdlc/fcs.h"
 
 #define ENABLE_DEBUG    (0)
@@ -34,6 +36,8 @@
 #define PPP_GOOD_FCS16          (0xF0B8)
 
 #define ACCM_DEFAULT            (0xFFFFFFFFUL)
+
+#define ESCAPE_P(accm, c)       ((accm)[(c) >> 3] & 1 << (c & 0x07))
 
 static inline void _pppos_rx_ready(pppos_t *dev)
 {
@@ -125,45 +129,55 @@ static int _init(netdev_t *netdev)
     return 0;
 }
 
-static inline void _write_byte(pppos_t *dev, uint8_t byte)
+static inline void _pppos_write_byte(pppos_t *dev, uint8_t byte, uint8_t accm, uint16_t *fcs)
 {
-    uart_write(dev->config.uart, &byte, 1);
+    uint8_t c = byte;
+
+    if(fcs) {
+        *fcs = fcs16_bit(*fcs, byte);
+    }
+
+    if((accm) && (ESCAPE_P(dev->accm.tx, c))) {
+        uart_write(dev->config.uart, (uint8_t *)&HDLC_CONTROL_ESCAPE, 1);
+        c ^= HDLC_SIX_CMPL;
+    }
+
+    uart_write(dev->config.uart, &c, 1);
 }
 
 static int _send(netdev_t *netdev, const iolist_t *iolist)
 {
     pppos_t *dev = (pppos_t *)netdev;
+    uint16_t fcs;
+
     int bytes = 0;
-    uint16_t fcs = PPP_INIT_FCS16;
 
     DEBUG(MODULE"sending iolist\n");
 
-    _write_byte(dev, HDLC_FLAG_SEQUENCE);
+    if((xtimer_now_usec() - dev->last_xmit) >= PPPOS_MAX_IDLE_TIME_MS) {
+        _pppos_write_byte(dev, HDLC_FLAG_SEQUENCE, 0, NULL);
+    }
+
+    fcs = PPP_INIT_FCS16;
 
     for(const iolist_t *iol = iolist; iol; iol = iol->iol_next) {
-         = iol->iol_base;
+        uint8_t * data = iol->iol_base;
 
         for(unsigned j = 0; j < iol->iol_len; j++, data++) {
-            /* if flag, escape character or current char in ACCM, add escape character plus XOR HDLC_SIX_CMPL*/
-            if((data == HDLC_FLAG_SEQUENCE) || (data == HDLC_CONTROL_ESCAPE)
-                    || dev->accm.tx & (1 << data)) {
-                _write_byte(dev, (uint8_t) HDLC_FLAG_SEQUENCE);
-                _write_byte(dev, (uint8_t)data ^ HDLC_SIX_CMPL);
-            } else {
-                _write_byte(dev, data);
-            }
-            fcs = fcs16_bit(fcs, data);
+            _pppos_write_byte(dev, *data, 1, &fcs);
         }
         bytes++;
     }
 
     fcs ^= 0xffff;
-    _write_byte(dev, (uint8_t) fcs & 0x00ff);
-    _write_byte(dev, (uint8_t) (fcs >> 8) & 0x00ff);
+    _pppos_write_byte(dev, (uint8_t) fcs & 0x00ff, 1, NULL);
+    _pppos_write_byte(dev, (uint8_t) (fcs >> 8) & 0x00ff, 1, NULL);
 
-    _write_byte(dev, HDLC_FLAG_SEQUENCE);
+    _pppos_write_byte(dev, HDLC_FLAG_SEQUENCE, 0, NULL);
+
+    dev->last_xmit = xtimer_now_usec();
+
     return bytes;
-
 }
 
 static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
@@ -171,64 +185,6 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
     pppos_t *dev = (pppos_t *)netdev;
     int res = 0;
 
-    (void)info;
-    if(buf == NULL) {
-        if(len > 0) {
-            /* remove data */
-            for(; len > 0; len--) {
-                int byte = tsrb_get_one(&dev->inbuf);
-                if((byte == (int)HDLC_CONTROL_ESCAPE) || (byte < 0)) {
-                    /* end early if end of packet or ringbuffer is reached;
-                     * len might be larger than the actual packet */
-                    break;
-                }
-            }
-        } else {
-            /* the user was warned not to use a buffer size > `INT_MAX` ;-) */
-            res = (int)tsrb_avail(&dev->inbuf);
-        }
-    } else {
-        int byte;
-        uint8_t *ptr = buf;
-
-        do {
-            if((byte = tsrb_get_one(&dev->inbuf)) < 0) {
-                /* something went wrong, return error */
-                return -EIO;
-            }
-            switch(byte) {
-            case HDLC_FLAG_SEQUENCE:
-                if((dev->fcs == PPP_GOOD_FCS16)
-                       && (dev->esc == 0) && (res >= 4)) {
-                   /* valid data */
-                    return res;
-               }
-                /* start sequence */
-                dev->esc = HDLC_SIX_CMPL;
-                dev->fcs = PPP_INIT_FCS16;
-
-                res = 0;
-                break;
-
-            case HDLC_CONTROL_ESCAPE:
-                /* escape next character */
-                dev->esc = HDLC_SIX_CMPL;
-                break;
-
-            default:
-                if(!((byte <= HDLC_SIX_CMPL) && (dev->accm.rx & (1 << byte)))) {
-                    uint8_t c = byte ^ dev->esc;
-
-                    *(ptr++) = c;
-                    res++;
-
-                    dev->fcs = fcs16_bit(dev->fcs, c);
-                    dev->esc = 0;
-                }
-                break;
-            }
-        } while(byte != HDLC_CONTROL_ESCAPE);
-    }
     return res;
 }
 
@@ -283,6 +239,8 @@ void pppos_setup(pppos_t *dev, const pppos_params_t *params)
     dev->fcs = PPP_INIT_FCS16;
     dev->accm.rx = ACCM_DEFAULT;
     dev->accm.tx = ACCM_DEFAULT;
+
+    dev->last_xmit = 0;
 
     dev->netdev.driver = &pppos_driver;
 }
