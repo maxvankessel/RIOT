@@ -93,17 +93,13 @@ typedef enum {
 } gnrc_ppp_dev_event_t;
 
 
-/**
- * @brief setup function for GNRC PPP
- *
- * @param dev pointer to gnrc ppp interface
- * @param pppdev pointer to netdev2 interface
- *
- * @return 0 for the moment
- */
-int gnrc_ppp_setup(gnrc_netdev2_t *dev, netdev2_t *netdev);
+gnrc_netif_t *gnrc_netif_ppp_create(char *stack, int stacksize,
+                                       char priority, char *name,
+                                       netdev_t *dev);
 
-gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code, uint8_t id, gnrc_pktsnip_t *payload);
+
+gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code, uint8_t id,
+            gnrc_pktsnip_t *payload);
 
 
 /**

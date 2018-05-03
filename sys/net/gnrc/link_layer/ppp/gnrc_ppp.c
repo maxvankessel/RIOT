@@ -28,13 +28,14 @@
 #include "net/gnrc/ppp/ipcp.h"
 #include "net/gnrc/ppp/fsm.h"
 #include "net/ipv6/addr.h"
-#include "net/gnrc/ipv6/netif.h"
+#include "net/gnrc/netif.h"
 #include "net/gnrc/ppp/pap.h"
-#include "net/hdlc/hdr.h"
 #include "net/ppp/hdr.h"
 #include <errno.h>
 #include <string.h>
 #include "byteorder.h"
+
+#include "net/gnrc/netif.h"
 
 #define ENABLE_DEBUG    (0)
 #include "debug.h"
@@ -44,6 +45,39 @@
 #include <inttypes.h>
 #endif
 
+static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif);
+
+static const gnrc_netif_ops_t ppp_ops = {
+    .init = _ppp_init,
+    .send = _send,
+    .recv = _recv,
+    .get = gnrc_netif_get_from_netdev,
+    .set = gnrc_netif_set_from_netdev,
+    .msg_handler = _ppp_msg_handler,
+};
+
+gnrc_netif_t *gnrc_netif_ppp_create(char *stack, int stacksize, char priority,
+        char *name, netdev_t *dev)
+{
+    return gnrc_netif_create(stack, stacksize, priority, name, dev, &ppp_ops);
+}
+
+static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
+{
+    int nbytes;
+    netdev_t *dev = netif->dev;
+
+    /* get number of bytes to read */
+    nbytes = dev->driver->recv(dev, NULL, 0, NULL);
+
+    /* prepare packet */
+    gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, NULL, nbytes, GNRC_NETTYPE_UNDEF);
+
+    /* fill packet */
+    dev->driver->recv(dev, pkt->data, nbytes, NULL);
+
+    return pkt;
+}
 
 void send_ppp_event(msg_t *msg, gnrc_ppp_msg_t ppp_msg)
 {
@@ -61,7 +95,8 @@ void send_ppp_event_xtimer(msg_t *msg, xtimer_t *xtimer, gnrc_ppp_msg_t ppp_msg,
 }
 
 /* Generate PPP pkt */
-gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code, uint8_t id, gnrc_pktsnip_t *payload)
+gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code,
+        uint8_t id, gnrc_pktsnip_t *payload)
 {
     ppp_hdr_t ppp_hdr;
 
@@ -71,11 +106,13 @@ gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code, uint8_t id, gnr
     int payload_length = payload ? payload->size : 0;
     ppp_hdr.length = byteorder_htons(payload_length + sizeof(ppp_hdr_t));
 
-    gnrc_pktsnip_t *ppp_pkt = gnrc_pktbuf_add(payload, (void *) &ppp_hdr, sizeof(ppp_hdr_t), pkt_type);
+    gnrc_pktsnip_t *ppp_pkt = gnrc_pktbuf_add(payload, (void *)&ppp_hdr,
+            sizeof(ppp_hdr_t), pkt_type);
+
     return ppp_pkt;
 }
 
-gnrc_ppp_target_t _get_target_from_protocol(uint16_t protocol)
+static gnrc_ppp_target_t _get_target_from_protocol(uint16_t protocol)
 {
     switch (protocol) {
         case PPPTYPE_LCP:
@@ -93,21 +130,18 @@ gnrc_ppp_target_t _get_target_from_protocol(uint16_t protocol)
     }
     return PROT_UNDEF;
 }
-gnrc_pktsnip_t *retrieve_pkt(netdev2_t *dev)
+
+
+static void gnrc_ppp_init(gnrc_netif_t *netif)
 {
-    int nbytes;
+//    dev->dev = (netdev2_t*) netdev;
+//
+//	netdev2_ppp_t *pppdev = (netdev2_ppp_t*) netdev;
 
-    nbytes = dev->driver->recv(dev, NULL, 0, NULL);
-    gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, NULL, nbytes, GNRC_NETTYPE_UNDEF);
-    dev->driver->recv(dev, pkt->data, nbytes, NULL);
-    return pkt;
-}
+    netdev_t *dev;
 
-int gnrc_ppp_setup(gnrc_netdev2_t *dev, netdev2_t *netdev)
-{
-    dev->dev = (netdev2_t*) netdev;
-
-	netdev2_ppp_t *pppdev = (netdev2_ppp_t*) netdev;
+    dev = netif->dev;
+    //dev->event_callback = _gomach_event_cb;
 
     dcp_init(dev);
     lcp_init(dev);
@@ -121,14 +155,14 @@ int gnrc_ppp_setup(gnrc_netdev2_t *dev, netdev2_t *netdev)
 }
 
 
-int gnrc_ppp_send(gnrc_netdev2_t *dev, gnrc_pktsnip_t *pkt)
+int gnrc_ppp_send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 {
     hdlc_hdr_t hdlc_hdr;
     netdev2_t *netdev = (netdev2_t*) dev->dev;
 	netdev2_ppp_t *pppdev = (netdev2_ppp_t*) netdev;
 
     hdlc_hdr.address = GNRC_PPP_HDLC_ADDRESS;
-    hdlc_hdr.control =GNRC_PPP_HDLC_CONTROL;
+    hdlc_hdr.control = GNRC_PPP_HDLC_CONTROL;
     hdlc_hdr.protocol = byteorder_htons(gnrc_nettype_to_ppp_protnum(pkt->type));
 
     gnrc_pktsnip_t *hdr = gnrc_pktbuf_add(pkt, (void *) &hdlc_hdr, sizeof(hdlc_hdr_t), GNRC_NETTYPE_HDLC);
@@ -205,7 +239,7 @@ gnrc_ppp_protocol_t *_get_prot_by_target(netdev2_ppp_t *pppdev, gnrc_ppp_target_
     return target_prot;
 }
 
-gnrc_pktsnip_t *ppp_recv(gnrc_netdev2_t *gnrc_netdev)
+gnrc_pktsnip_t *ppp_recv(gnrc_netif_t *netif,)
 {
     gnrc_pktsnip_t *pkt = NULL;
     netdev2_t *netdev = (netdev2_t*) gnrc_netdev->dev;
@@ -272,7 +306,7 @@ safe_out:
     gnrc_pktbuf_release(pkt);
     return NULL;
 }
-int dispatch_ppp_msg(gnrc_netdev2_t *dev, gnrc_ppp_msg_t ppp_msg)
+int dispatch_ppp_msg(gnrc_netif_t *netif,, gnrc_ppp_msg_t ppp_msg)
 {
     gnrc_ppp_target_t target = ppp_msg_get_target(ppp_msg);
     gnrc_ppp_event_t event = ppp_msg_get_event(ppp_msg);
@@ -297,8 +331,6 @@ int dispatch_ppp_msg(gnrc_netdev2_t *dev, gnrc_ppp_msg_t ppp_msg)
 
         return target_prot->handler(target_prot, event, NULL);
     }
-
-
 }
 
 void gnrc_ppp_trigger_event(msg_t *msg, kernel_pid_t pid, uint8_t target, uint8_t event)
@@ -308,7 +340,7 @@ void gnrc_ppp_trigger_event(msg_t *msg, kernel_pid_t pid, uint8_t target, uint8_
     msg_send(msg, pid);
 }
 
-void ppp_protocol_init(gnrc_ppp_protocol_t *protocol, gnrc_netdev2_t *pppdev, int (*handler)(gnrc_ppp_protocol_t *, uint8_t, void *), uint8_t id)
+void ppp_protocol_init(gnrc_ppp_protocol_t *protocol, gnrc_netif_t *netif, int (*handler)(gnrc_ppp_protocol_t *, uint8_t, void *), uint8_t id)
 {
     protocol->handler = handler;
     protocol->id = id;
