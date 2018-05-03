@@ -28,6 +28,8 @@
 
 #define MODULE  "pppos: "
 
+#define HDLC_ALLSTATIONS        (0xFF)    /* All-Stations broadcast address */
+#define HDLC_UI                 (0x03)    /* Unnumbered Information */
 #define HDLC_FLAG_SEQUENCE      (0x7E)
 #define HDLC_CONTROL_ESCAPE     (0x7D)
 #define HDLC_SIX_CMPL           (0x20)
@@ -37,78 +39,120 @@
 
 #define ACCM_DEFAULT            (0xFFFFFFFFUL)
 
-#define ESCAPE_P(accm, c)       ((accm)[(c) >> 3] & 1 << (c & 0x07))
+#define ESCAPE_P(accm, c)       ((accm) & (1 << (c & 0x07)))
 
-static inline void _pppos_rx_ready(pppos_t *dev)
+static int _tsrb_peek_one(tsrb_t rb)
 {
-    dev->state = PPP_RX_IDLE;
-
-    if((dev->fcs == PPP_GOOD_FCS16) && (dev->esc == 0) && (dev->idx >= 4)){
-        if(dev->netdev.event_callback != NULL) {
-            dev->netdev.event_callback((netdev_t *)dev, NETDEV_EVENT_ISR);
-        }
-
-        dev->count = dev->idx;
+    if(!tsrb_empty(rb)) {
+        return rb->buf[rb->reads & (rb->size - 1)];
     }
+    else {
+        return -1;
+    }
+}
 
-    dev->idx = 0;
-    dev->esc = 0;
+static void _pppos_drop_input(pppos_t *dev)
+{
+    int c = tsrb_get_one(&dev->inbuf);
 
-    dev->fcs = PPP_INIT_FCS16;
+    while((c > 0) && (c != HDLC_FLAG_SEQUENCE)) {
+        c = tsrb_get_one(&dev->inbuf);
+    }
 }
 
 static void _pppos_rx_cb(void *arg, uint8_t byte)
 {
     pppos_t *dev = arg;
+    uint8_t esc = ESCAPE_P(dev->accm.rx, byte);
 
-    switch(byte) {
-
-        case HDLC_FLAG_SEQUENCE:
-            if(dev->state != PPP_RX_IDLE) {
-                _pppos_rx_ready(dev);
+    /* special character */
+    if(esc) {
+        if(byte == HDLC_CONTROL_ESCAPE) {
+            dev->esc = 1;
+        } else if(byte == HDLC_FLAG_SEQUENCE) {
+            if(dev->state <= PPP_RX_ADDRESS) {
+                /* ignore */
             }
-            break;
-        case HDLC_CONTROL_ESCAPE:
-            dev->state = PPP_RX_STARTED;
-            dev->esc = HDLC_SIX_CMPL;
-            break;
-
-        default:
-            dev->state = PPP_RX_STARTED;
-            if(!((byte <= HDLC_SIX_CMPL) && (dev->accm.rx & (1 << byte)))){
-                uint8_t c = byte ^ dev->esc;
-
-                dev->state = PPP_RX_STARTED;
-
-                tsrb_add_one(&dev->inbuf, c);
-                dev->idx++;
-
-                dev->fcs = fcs16_bit(dev->fcs, c);
-                dev->esc = 0;
+            else if(dev->state < PPP_RX_DATA) {
+                /* drop, incomplete*/
+                _pppos_drop_input(dev);
             }
-    }
-
-
-
-
-    if(byte == HDLC_FLAG_SEQUENCE) {
-        if(dev->state == PPP_RX_IDLE){
-            dev->state = PPP_RX_STARTED;
-
-            dev->esc = HDLC_SIX_CMPL;
-            dev->fcs = PPP_INIT_FCS16;
-
-            dev->count = 0;
-        }
-        else {
-            if((dev->fcs == PPP_GOOD_FCS16) && (dev->esc == 0) && (dev->count >= 4)){
+            else if(dev->fcs != PPP_GOOD_FCS16) {
+                /* drop, bad fcs */
+                _pppos_drop_input(dev);
+            }
+            else {
+                /* complete package */
                 if(dev->netdev.event_callback != NULL) {
                     dev->netdev.event_callback((netdev_t *)dev, NETDEV_EVENT_ISR);
                 }
-
-                dev->state = PPP_RX_IDLE;
             }
+            /* new packet preparation */
+            dev->fcs = PPP_INIT_FCS16;
+            dev->state = PPP_RX_ADDRESS;
+            dev->esc = 0;
+
+            /* add sequence flag */
+            tsrb_add_one(&dev->inbuf, byte);
         }
+        else {
+            /* dropping accm chars */
+        }
+    }
+    else {
+        if(dev->esc) {
+            dev->esc = 0;
+            byte ^= HDLC_SIX_CMPL;
+        }
+
+        switch(dev->state) {
+            case PPP_RX_IDLE:
+                /* All Stations address */
+                if(byte != HDLC_ALLSTATIONS){
+                    break;
+                }
+                /* fall through */
+            case PPP_RX_STARTED:
+                dev->fcs = PPP_INIT_FCS16;
+                /* fall through */
+            case PPP_RX_ADDRESS:
+                /* All Stations address */
+                if(byte == HDLC_ALLSTATIONS){
+                    dev->state = PPP_RX_CONTROL;
+                    break;
+                }
+                /* fall through */
+            case PPP_RX_CONTROL:
+                if(byte == HDLC_UI){
+                    dev->state = PPP_RX_PROTOCOL;
+                    dev->prot = 0;
+                    break;
+                }
+
+            case PPP_RX_PROTOCOL:
+                if(dev->prot == 0) {
+                    /* end of protocol field */
+                    if(byte & 1) {
+                        dev->prot = byte;
+                        dev->state = PPP_RX_DATA;
+                    }
+                    else {
+                        dev->prot = (uint16_t)byte << 8;
+                    }
+                }
+                else {
+                    dev->prot |= byte;
+                    dev->state = PPP_RX_DATA;
+                }
+                break;
+
+            case PPP_RX_DATA:
+                break;
+        }
+
+        dev->fcs = fcs16_bit(dev->fcs, byte);
+
+        tsrb_add_one(&dev->inbuf, byte);
     }
 }
 
@@ -182,8 +226,47 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
 
 static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
 {
-    pppos_t *dev = (pppos_t *)netdev;
     int res = 0;
+    pppos_t *dev = (pppos_t *)netdev;
+    uint16_t fcs;
+
+    (void)info;
+
+    for(; len > 0; len--) {
+        int byte;
+
+        if ((byte = _tsrb_peek_one(&dev->inbuf)) < 0) {
+            /* something went wrong, return error */
+            return -EIO;
+        }
+
+        /* start or restart */
+        if(byte == HDLC_FLAG_SEQUENCE) {
+            if(res >= 4) {
+                if(fcs == PPP_GOOD_FCS16) {
+                    /* complete, remove checksum */
+                    res -= 2;
+                    break;
+                }
+            }
+        }
+        else {
+            /* drop if buf is null */
+            if(buf) {
+                *(buf[res++]) = (uint8_t)byte;
+            }
+
+            fcs = (fcs << 8) | (uint16_t)byte;
+
+            /* remove from buffer */
+            (void)tsrb_get_one(&dev->inbuf);
+        }
+    }
+
+    if(len == 0) {
+        /* the user was warned not to use a buffer size > `INT_MAX` ;-) */
+       res = (int)tsrb_avail(&dev->inbuf);
+    }
 
     return res;
 }
@@ -215,10 +298,21 @@ static int _get(netdev_t *dev, netopt_t opt, void *value, size_t max_len)
 
 static int _set(netdev_t *dev, netopt_t opt, const void *value, size_t value_len)
 {
-    (void)netdev;
-    (void)opt;
-    (void)value;
+    pppos_t *netdev = (pppos_t *)dev;
     (void)value_len;
+
+    network_uint32_t *nu32 = (network_uint32_t *) value;
+
+    switch (opt) {
+        case NETOPT_PPP_ACCM_RX:
+            netdev->accm.rx = byteorder_ntohl(*nu32);
+            break;
+        case NETOPT_PPP_ACCM_TX:
+            netdev->accm.tx = byteorder_ntohl(*nu32);
+            break;
+        default:
+            return -ENOTSUP;
+    }
     return -ENOTSUP;
 }
 
@@ -236,7 +330,6 @@ void pppos_setup(pppos_t *dev, const pppos_params_t *params)
     /* set device descriptor fields */
     memcpy(&dev->config, params, sizeof(dev->config));
 
-    dev->fcs = PPP_INIT_FCS16;
     dev->accm.rx = ACCM_DEFAULT;
     dev->accm.tx = ACCM_DEFAULT;
 

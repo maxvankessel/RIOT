@@ -51,6 +51,10 @@ extern "C" {
 enum {
     PPP_RX_IDLE = 0,
     PPP_RX_STARTED,
+    PPP_RX_ADDRESS,
+    PPP_RX_CONTROL,
+    PPP_RX_PROTOCOL,
+    PPP_RX_DATA,
     PPP_RX_FINISHED,
 };
 
@@ -78,9 +82,8 @@ typedef struct {
 
     uint16_t fcs;
     uint8_t esc;
+    uint16_t prot;
     uint8_t state;
-    uint16_t count;
-    uint16_t idx;
 
     struct {
         uint32_t rx;
