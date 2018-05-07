@@ -26,6 +26,7 @@
 #include "cib.h"
 #include "net/netdev.h"
 #include "periph/uart.h"
+#include "periph/gpio.h"
 #include "tsrb.h"
 
 #ifdef __cplusplus
@@ -78,7 +79,7 @@ typedef struct {
     netdev_t netdev;                        /**< parent class */
     pppos_params_t config;                  /**< configuration parameters */
     tsrb_t inbuf;                           /**< RX buffer */
-    char rxmem[PPPOS_BUFSIZE];              /**< memory used by RX buffer */
+    uint8_t rxmem[PPPOS_BUFSIZE];              /**< memory used by RX buffer */
 
     uint16_t fcs;
     uint8_t esc;
