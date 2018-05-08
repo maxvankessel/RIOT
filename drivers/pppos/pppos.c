@@ -15,6 +15,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "log.h"
 #include "xtimer.h"
@@ -120,14 +121,16 @@ static void _pppos_rx_cb(void *arg, uint8_t byte)
                     /* All Stations address */
                     if(byte == HDLC_ALLSTATIONS){
                         dev->state = PPP_RX_CONTROL;
-                        break;
+                        /* not necessary to store */
+                        goto compute;
                     }
                     /* fall through */
                 case PPP_RX_CONTROL:
                     if(byte == HDLC_UI){
                         dev->state = PPP_RX_PROTOCOL;
                         dev->prot = 0;
-                        break;
+                        /* not necessary to store */
+                        goto compute;
                     }
 
                 case PPP_RX_PROTOCOL:
@@ -151,9 +154,9 @@ static void _pppos_rx_cb(void *arg, uint8_t byte)
                     break;
             }
 
-            dev->fcs = fcs16_bit(dev->fcs, byte);
-
             tsrb_add_one(&dev->inbuf, byte);
+compute:
+            dev->fcs = fcs16_bit(dev->fcs, byte);
         }
     }
     else {
@@ -204,11 +207,13 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
 
     DEBUG(MODULE"sending iolist\n");
 
+    fcs = PPP_INIT_FCS16;
+
     if((xtimer_now_usec() - dev->last_xmit) >= PPPOS_MAX_IDLE_TIME_MS) {
         _pppos_write_byte(dev, HDLC_FLAG_SEQUENCE, 0, NULL);
+        _pppos_write_byte(dev, HDLC_ALLSTATIONS, 1, &fcs);
+        _pppos_write_byte(dev, HDLC_UI, 1, &fcs);
     }
-
-    fcs = PPP_INIT_FCS16;
 
     for(const iolist_t *iol = iolist; iol; iol = iol->iol_next) {
         uint8_t * data = iol->iol_base;
@@ -248,7 +253,7 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
 
         /* start or restart */
         if(byte == HDLC_FLAG_SEQUENCE) {
-            if(res >= 4) {
+            if(res >= 2) {
                 /* complete, remove checksum */
                 res -= 2;
                 return res;
