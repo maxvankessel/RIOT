@@ -36,8 +36,28 @@ extern "C" {
  * of a PPP stack (Link Control Protocol, IP Control Protocol, etc). IP packets encapsulated in HDLC frame are not
  * considered PPP packet.
  *
- * The format of PPP header plus payload is:
+ *  A summary of the PPP encapsulation is shown below.  The fields are
+ *  transmitted from left to right.
  *
+ * +----------+-------------+---------+
+ * | Protocol | Information | Padding |
+ * | 8/16 bits|      *      |    *    |
+ * +----------+-------------+---------+
+ *
+ * @see <a href="https://tools.ietf.org/html/rfc1661#section-2">
+ *          RFC 1661, section 2
+ *      </a>
+ */
+/*  PPP pkt header struct */
+typedef struct __attribute__((packed)){
+    network_uint16_t protocol;  /**< protocol field, identifies datagram encapsulated in information field*/
+} ppp_hdr_t;
+
+/**
+ * @brief   Header of a LCP packet
+ *
+ * A summary of the Link Control Protocol packet format is shown below.
+ * The fields are transmitted from left to right.
  *
  *  0                   1                   2                   3
  *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -47,17 +67,20 @@ extern "C" {
  * |    Payload ...
  * +-+-+-+-+
  *
+ * Exactly one LCP packet is encapsulated in the PPP Information field,
+ * where the PPP Protocol field indicates type hex c021 (Link Control Protocol).
+ *
  *
  * @see <a href="https://tools.ietf.org/html/rfc1661#section-5">
  *          RFC 1661, section 5
  *      </a>
  */
-/*  PPP pkt header struct */
+/*  LCP pkt header struct */
 typedef struct __attribute__((packed)){
     uint8_t code;               /**< Code of PPP packet*/
     uint8_t id;                 /**< Identifier PPP of packet*/
     network_uint16_t length;    /**< Length of PPP packet including payload*/
-} ppp_hdr_t;
+} lcp_hdr_t;
 
 #ifdef __cplusplus
 }
