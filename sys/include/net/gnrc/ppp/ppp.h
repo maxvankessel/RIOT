@@ -23,13 +23,11 @@
 #include <inttypes.h>
 
 #include "net/gnrc.h"
-#include "net/gnrc/netdev2.h"
 #include "net/ppp/hdr.h"
 #include "net/gnrc/pkt.h"
 #include "net/gnrc/pktbuf.h"
 #include "xtimer.h"
 #include "thread.h"
-#include "net/netdev2.h"
 #include "net/netdev2/ppp.h"
 #include "net/gnrc/ppp/opt.h"
 #include "net/gnrc/ppp/prot.h"

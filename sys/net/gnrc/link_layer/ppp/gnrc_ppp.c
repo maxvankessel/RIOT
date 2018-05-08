@@ -45,15 +45,20 @@
 #include <inttypes.h>
 #endif
 
+#define MODULE  "gnrc_ppp: "
+
 static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif);
+static void _msg_handler(gnrc_netif_t *netif, msg_t *msg);
+
+static void _init(gnrc_netif_t *netif);
 
 static const gnrc_netif_ops_t ppp_ops = {
-    .init = _ppp_init,
+    .init = _init,
     .send = _send,
     .recv = _recv,
     .get = gnrc_netif_get_from_netdev,
     .set = gnrc_netif_set_from_netdev,
-    .msg_handler = _ppp_msg_handler,
+    .msg_handler = _msg_handler,
 };
 
 gnrc_netif_t *gnrc_netif_ppp_create(char *stack, int stacksize, char priority,
@@ -65,18 +70,100 @@ gnrc_netif_t *gnrc_netif_ppp_create(char *stack, int stacksize, char priority,
 static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
 {
     int nbytes;
+    gnrc_pktsnip_t *pkt;
+
     netdev_t *dev = netif->dev;
 
     /* get number of bytes to read */
     nbytes = dev->driver->recv(dev, NULL, 0, NULL);
 
+    if(nbytes > 0) {
+        /* prepare packet */
+        pkt = gnrc_pktbuf_add(NULL, NULL, nbytes, GNRC_NETTYPE_UNDEF);
+
+        if(!pkt) {
+            DEBUG(MODULE"cannot allocate pktsnip.\n");
+
+            /* drop the packet */
+            dev->driver->recv(dev, NULL, nbytes, NULL);
+
+            goto out;
+        }
+
+        int nread = dev->driver->recv(dev, pkt->data, nbytes, NULL);
+        if(nread <= 0) {
+            DEBUG(MODULE"read error.\n");
+            goto safe_out;
+        }
+
+        if(nread < nbytes) {
+            /* we've got less than the expected packet size,
+             * so free the unused space.*/
+
+            DEBUG(MODULE"reallocating.\n");
+            gnrc_pktbuf_realloc_data(pkt, nread);
+        }
+
+        /* mark header */
+        gnrc_pktsnip_t *ppp_hdr = gnrc_pktbuf_mark(pkt, sizeof(ppp_hdr_t), GNRC_NETTYPE_UNDEF);
+        if (!ppp_hdr) {
+          DEBUG(MODULE"no space left in packet buffer\n");
+          goto safe_out;
+        }
+
+        ppp_hdr_t *hdr = (ppp_hdr_t *)ppp_hdr->data;
+
+        /* set payload type from ppptype */
+        pkt->type = gnrc_nettype_from_ppp_protnum(byteorder_ntohs(hdr->protocol));
+
+        DEBUG(MODULE"packet received - protocol: x%04X\n", pkt->type);
+
+        gnrc_pktbuf_remove_snip(pkt, ppp_hdr);
+        LL_APPEND(pkt, ppp_hdr);
+    }
+
+out:
+    return pkt;
+
+safe_out:
+    gnrc_pktbuf_release(pkt);
+    return NULL;
+
+
     /* prepare packet */
-    gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, NULL, nbytes, GNRC_NETTYPE_UNDEF);
+    gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, NULL, nbytes, GNRC_NETTYPE_PPP);
 
     /* fill packet */
-    dev->driver->recv(dev, pkt->data, nbytes, NULL);
+    if((nbytes = dev->driver->recv(dev, pkt->data, nbytes, NULL))) {
+        gnrc_ppp_protocol_id_t id;
+        gnrc_nettype_t type = GNRC_NETTYPE_PPP;
 
+        /* interpret as ppp header */
+        ppp_hdr_t *hdr = (ppp_hdr_t *)pkt->data;
+
+
+
+        id = _get_target_from_protocol(byteorder_ntohs(hdr->protocol));
+
+
+        switch(id) {
+        case PROT_LCP:
+            type = GNRC_NETTYPE_LCP;
+        case PROT_IPCP
+        }
+
+        gnrc_pktbuf_mark(pkt, nbytes, )
+    }
     return pkt;
+}
+
+static void _msg_handler(gnrc_netif_t *netif, msg_t *msg)
+{
+    /* get protocol id */
+    gnrc_ppp_protocol_id_t id = _get_target_from_protocol(byteorder_ntohs(hdr->protocol));
+
+    /* transform message, according to protocol */
+
 }
 
 void send_ppp_event(msg_t *msg, gnrc_ppp_msg_t ppp_msg)
@@ -112,7 +199,7 @@ gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code,
     return ppp_pkt;
 }
 
-static gnrc_ppp_target_t _get_target_from_protocol(uint16_t protocol)
+static gnrc_ppp_protocol_id_t _get_target_from_protocol(uint16_t protocol)
 {
     switch (protocol) {
         case PPPTYPE_LCP:
@@ -126,18 +213,14 @@ static gnrc_ppp_target_t _get_target_from_protocol(uint16_t protocol)
         case PPPTYPE_PAP:
             return PROT_AUTH;
         default:
-            DEBUG("gnrc_ppp: Received unknown PPP protocol. Discard.\n");
+            DEBUG(MODULE"received unknown ppp protocol. discard packet.\n");
     }
     return PROT_UNDEF;
 }
 
 
-static void gnrc_ppp_init(gnrc_netif_t *netif)
+static void _init(gnrc_netif_t *netif)
 {
-//    dev->dev = (netdev2_t*) netdev;
-//
-//	netdev2_ppp_t *pppdev = (netdev2_ppp_t*) netdev;
-
     netdev_t *dev;
 
     dev = netif->dev;
@@ -239,7 +322,7 @@ gnrc_ppp_protocol_t *_get_prot_by_target(netdev2_ppp_t *pppdev, gnrc_ppp_target_
     return target_prot;
 }
 
-gnrc_pktsnip_t *ppp_recv(gnrc_netif_t *netif,)
+gnrc_pktsnip_t *ppp_recv(gnrc_netif_t *netif)
 {
     gnrc_pktsnip_t *pkt = NULL;
     netdev2_t *netdev = (netdev2_t*) gnrc_netdev->dev;
@@ -306,7 +389,7 @@ safe_out:
     gnrc_pktbuf_release(pkt);
     return NULL;
 }
-int dispatch_ppp_msg(gnrc_netif_t *netif,, gnrc_ppp_msg_t ppp_msg)
+int dispatch_ppp_msg(gnrc_netif_t *netif, gnrc_ppp_msg_t ppp_msg)
 {
     gnrc_ppp_target_t target = ppp_msg_get_target(ppp_msg);
     gnrc_ppp_event_t event = ppp_msg_get_event(ppp_msg);
