@@ -1,41 +1,31 @@
 /*
  * Copyright (C) 2016 José Ignacio Alamos <jialamos@uc.cl>
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
  * directory for more details.
  */
 
-/**
- * @{
- * @ingroup     net_gnrc_ppp
- * @file
- * @brief       Implementation of the PPP protocol
- *
- * @author      José Ignacio Alamos <jialamos@uc.cl>
- * @}
- */
-
 #include <errno.h>
+#include <string.h>
 
-#include "msg.h"
-#include "thread.h"
 #include "net/gnrc.h"
-#include "net/gnrc/netdev2.h"
-#include "net/ppptype.h"
+#include "net/gnrc/netif/ppp.h"
+
+#include "net/ppp/hdr.h"
+
 #include "net/gnrc/ppp/ppp.h"
 #include "net/gnrc/ppp/lcp.h"
 #include "net/gnrc/ppp/ipcp.h"
 #include "net/gnrc/ppp/fsm.h"
-#include "net/ipv6/addr.h"
-#include "net/gnrc/netif.h"
 #include "net/gnrc/ppp/pap.h"
-#include "net/ppp/hdr.h"
-#include <errno.h>
-#include <string.h>
+
 #include "byteorder.h"
 
-#include "net/gnrc/netif.h"
+#ifdef MODULE_GNRC_IPV6
+#include "net/ipv6/hdr.h"
+#endif
 
 #define ENABLE_DEBUG    (0)
 #include "debug.h"

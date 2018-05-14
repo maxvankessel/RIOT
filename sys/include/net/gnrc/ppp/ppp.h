@@ -91,10 +91,6 @@ typedef enum {
 } gnrc_ppp_dev_event_t;
 
 
-gnrc_netif_t *gnrc_netif_ppp_create(char *stack, int stacksize,
-                                       char priority, char *name,
-                                       netdev_t *dev);
-
 
 gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code, uint8_t id,
             gnrc_pktsnip_t *payload);

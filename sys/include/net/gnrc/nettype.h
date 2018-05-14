@@ -132,10 +132,13 @@ typedef enum {
      * @name Link layer
      */
 #ifdef MODULE_GNRC_PPP
-    GNRC_NETTYPE_LCP,   /**< Protocol is PPP LCP */
+    GNRC_NETTYPE_PPP,   /**< Generic PPP message */
+    GNRC_NETTYPE_NCP,   /**< Protocol is PPP Network Control Protocol */
+    GNRC_NETTYPE_LCP,   /**< Protocol is PPP Link-layer Control Protocol */
+
     GNRC_NETTYPE_IPCP,  /**< Protocol is PPP IPCP */
-    GNRC_NETTYPE_HDLC,  /**< Protocol is HDLC */
-    GNRC_NETTYPE_IPV4,  /**< Protocol is IPV4 encapsulated in HDLC frame */
+    GNRC_NETTYPE_IPV4,  /**< Protocol is IPV4 */
+
     GNRC_NETTYPE_PAP,   /**< Protocol is PAP auth */
 #endif
     /**
@@ -282,24 +285,37 @@ static inline uint8_t gnrc_nettype_to_protnum(gnrc_nettype_t type)
 
 static inline gnrc_nettype_t gnrc_nettype_from_ppp_protnum(uint16_t protnum)
 {
-    switch (protnum) {
-#ifdef MODULE_GNRC_PPP
-        case PPPTYPE_LCP:
-            return GNRC_NETTYPE_LCP;
-        case PPPTYPE_NCP_IPV4:
-            return GNRC_NETTYPE_IPCP;
-        case PPPTYPE_IPV4:
-            return GNRC_NETTYPE_IPV4;
-        case PPPTYPE_PAP:
-            return GNRC_NETTYPE_PAP;
-#   ifdef MODULE_GNRC_IPV6
-        case PPPTYPE_IPV6:
-            return GNRC_NETTYPE_IPV6;
-#   endif
-#endif
-        default:
-            return GNRC_NETTYPE_UNDEF;
+#ifndef MODULE_GNRC_PPP
+    unsigned int nettype = GNRC_NETTYPE_UNDEF;
+#else
+    unsigned int nettype = GNRC_NETTYPE_PPP;
+
+    /* protocol is stored in big-endian, get top nibble */
+    uint8_t prot = (uint8_t)(((protnum) & 0xf000) >> 12);
+
+    if((prot >= 0x0) && (prot <= 0x3)) {
+        /* Network Layer Protocols */
+        break;
     }
+    else if((prot >= 0x4) && (prot <= 0x7)) {
+        /*  Low volume traffic without NCP */
+        break;
+    }
+    else if((prot >= 0x8) && (prot <= 0xb)) {
+        /* Network Control Protocols */
+        if((protnum > 0x8011)) {
+            nettype = GNRC_NETTYPE_NCP;
+        }
+        else {
+            nettype = GNRC_NETTYPE_UNDEF;
+        }
+    }
+    else if((prot >= 0xc) && (prot <= 0xf)) {
+        /* Link-layer Control Protocols. */
+        nettype = GNRC_NETTYPE_LCP;
+    }
+#endif
+    return nettype;
 }
 static inline uint16_t gnrc_nettype_to_ppp_protnum(gnrc_nettype_t type)
 {
