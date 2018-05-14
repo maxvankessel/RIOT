@@ -85,6 +85,10 @@ static void _pppos_rx_cb(void *arg, uint8_t byte)
                 else if(dev->fcs != PPP_GOOD_FCS16) {
                     /* drop, bad fcs */
                     _pppos_drop_input(dev);
+
+                    if (dev->netdev.event_callback != NULL) {
+                        dev->netdev.event_callback((netdev_t *)dev, NETDEV_EVENT_CRC_ERROR);
+                    }
                 }
                 else {
                     /* complete package */
@@ -99,6 +103,10 @@ static void _pppos_rx_cb(void *arg, uint8_t byte)
 
                 /* add sequence flag */
                 tsrb_add_one(&dev->inbuf, byte);
+
+                if (dev->netdev.event_callback != NULL) {
+                   dev->netdev.event_callback((netdev_t *)dev, NETDEV_EVENT_RX_STARTED);
+               }
             }
         }
         else {
