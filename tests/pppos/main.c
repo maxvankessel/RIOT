@@ -24,7 +24,9 @@
 #include "shell_commands.h"
 #include "net/gnrc.h"
 #include "net/gnrc/pktdump.h"
+#include "net/netdev/layer.h"
 #include "net/gnrc/netif/raw.h"
+#include "net/hdlc.h"
 
 #include "pppos.h"
 
@@ -41,12 +43,17 @@ static const pppos_params_t _pppos_params = {
     .baudrate = PPPOS_BAUDRATE,
 };
 
+static hdlc_t _hdlc;
+
 /**
  * @brief   Maybe you are a golfer?!
  */
 int main(void)
 {
     pppos_setup(&_pppos, &_pppos_params);
+
+    netdev_add_layer(&_hdlc, &_pppos);
+
     gnrc_netif_raw_create(_pppos_stack, PPPOS_STACKSIZE, PPPOS_PRIO, "pppos",
             (netdev_t *)&_pppos);
 

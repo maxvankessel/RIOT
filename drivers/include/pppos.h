@@ -23,8 +23,7 @@
 
 #include <stdint.h>
 
-#include "cib.h"
-#include "net/netdev.h"
+#include "net/netdev/ppp.h"
 #include "periph/uart.h"
 #include "periph/gpio.h"
 #include "tsrb.h"
@@ -34,30 +33,15 @@ extern "C" {
 #endif
 
 /**
- * @brief   UART buffer size used for TX and RX buffers
+ * @brief   UART buffer size used for RX buffers
  *
- * Reduce this value if your expected traffic does not include full IPv6 MTU
- * sized packets.
+ * Not planning to store data here very long.
  *
  * @pre Needs to be power of two and `<= INT_MAX`
  */
 #ifndef PPPOS_BUFSIZE
-#define PPPOS_BUFSIZE (2048U)
+#define PPPOS_BUFSIZE (128U)
 #endif
-
-#ifndef PPPOS_MAX_IDLE_TIME_MS
-#define PPPOS_MAX_IDLE_TIME_MS (100 * US_PER_MS)
-#endif
-
-enum {
-    PPP_RX_IDLE = 0,
-    PPP_RX_STARTED,
-    PPP_RX_ADDRESS,
-    PPP_RX_CONTROL,
-    PPP_RX_PROTOCOL,
-    PPP_RX_DATA,
-    PPP_RX_FINISHED,
-};
 
 /**
  * @brief   Configuration parameters for PPP over Serial
@@ -73,25 +57,19 @@ typedef struct {
 /**
  * @brief   Device descriptor for PPP over Serial
  *
- * @extends netdev_t
+ * @extends netdev_ppp_t
  */
 typedef struct {
-    netdev_t netdev;                        /**< parent class */
+    netdev_ppp_t netdev;                    /**< parent class */
     pppos_params_t config;                  /**< configuration parameters */
-    tsrb_t inbuf;                           /**< RX buffer */
-    uint8_t rxmem[PPPOS_BUFSIZE];              /**< memory used by RX buffer */
-
-    uint16_t fcs;
-    uint8_t esc;
-    uint16_t prot;
-    uint8_t state;
 
     struct {
         uint32_t rx;
         uint32_t tx;
     } accm;
 
-    uint32_t last_xmit;
+    tsrb_t inbuf;                   /**< RX buffer */
+    uint8_t rxmem[PPPOS_BUFSIZE];   /**< memory used by RX buffer */
 
 } pppos_t;
 
