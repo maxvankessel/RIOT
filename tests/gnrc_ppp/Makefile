@@ -6,14 +6,13 @@ BOARD_INSUFFICIENT_MEMORY := msb-430 msb-430h nucleo32-f031 nucleo32-f042 \
 
 BOARD_BLACKLIST += mips-malta
 
-USEMODULE += auto_init_gnrc_netif
 USEMODULE += gnrc
-USEMODULE += gnrc_ppp
 USEMODULE += gnrc_pktdump
 USEMODULE += gnrc_txtsnd
 USEMODULE += pppos
 USEMODULE += shell
 USEMODULE += shell_commands
+USEMODULE += netdev_ppp
 
 # set pppos parameters to default values if unset
 PPPOS_UART     ?= "UART_NUMOF-1"

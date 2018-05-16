@@ -23,9 +23,8 @@
 #include "shell.h"
 #include "shell_commands.h"
 #include "net/gnrc.h"
-#include "net/gnrc/ppp/ppp.h"
+#include "net/gnrc/netif/ppp.h"
 #include "net/gnrc/pktdump.h"
-#include "net/gnrc/netif/raw.h"
 
 #include "pppos.h"
 

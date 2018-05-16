@@ -286,6 +286,7 @@ static inline uint8_t gnrc_nettype_to_protnum(gnrc_nettype_t type)
 static inline gnrc_nettype_t gnrc_nettype_from_ppp_protnum(uint16_t protnum)
 {
 #ifndef MODULE_GNRC_PPP
+    (void)protnum;
     unsigned int nettype = GNRC_NETTYPE_UNDEF;
 #else
     unsigned int nettype = GNRC_NETTYPE_PPP;
@@ -293,13 +294,13 @@ static inline gnrc_nettype_t gnrc_nettype_from_ppp_protnum(uint16_t protnum)
     /* protocol is stored in big-endian, get top nibble */
     uint8_t prot = (uint8_t)(((protnum) & 0xf000) >> 12);
 
-    if((prot >= 0x0) && (prot <= 0x3)) {
+    if(prot <= 0x3) {
         /* Network Layer Protocols */
-        break;
+    	return nettype;
     }
     else if((prot >= 0x4) && (prot <= 0x7)) {
         /*  Low volume traffic without NCP */
-        break;
+    	return nettype;
     }
     else if((prot >= 0x8) && (prot <= 0xb)) {
         /* Network Control Protocols */

@@ -30,11 +30,24 @@ extern "C" {
 
 /**
  * @brief Data type to represent an HDLC header.
+ *
+ *  +----------+----------+----------+
+ *  |   Flag   | Address  | Control  |
+ *  | 01111110 | 11111111 | 00000011 |
+ *  +----------+----------+----------+
+ *  +--------------------------------+
+ *  |              Data              |
+ *  |              8 x n             |
+ *  +--------------------------------+
+ *  +----------+----------+-----------------
+ *  |   FCS    |   Flag   | Inter-frame Fill
+ *  |16/32 bits| 01111110 | or next Address
+ *  +----------+----------+-----------------
+ *
  */
 typedef struct __attribute__((packed)) {
-    uint8_t address;            /**< Address field oh HDLC header */
+    uint8_t address;            /**< Source address field of HDLC header */
     uint8_t control;            /**< Control field of HDLC header */
-    network_uint16_t protocol;  /**< Protocol field of HDLC header */
 } hdlc_hdr_t;
 
 #ifdef __cplusplus

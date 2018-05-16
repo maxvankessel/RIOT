@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup drivers_netdev_netdev2
+ * @ingroup drivers_netdev
  * @brief
  * @{
  *
@@ -16,66 +16,67 @@
  *
  * @author  José Ignacio Alamos
  */
-#ifndef NETDEV2_PPP_H
-#define NETDEV2_PPP_H
+#ifndef NETDEV_PPP_H
+#define NETDEV_PPP_H
 
-#include "net/gnrc/ppp/prot.h"
-#include "net/gnrc/ppp/prot.h"
-#include "net/gnrc/ppp/lcp.h"
-#include "net/gnrc/ppp/pap.h"
-#include "net/gnrc/ppp/ipcp.h"
+//#include "net/gnrc/ppp/prot.h"
+//
+//#include "net/gnrc/ppp/lcp.h"
+//#include "net/gnrc/ppp/pap.h"
+//#include "net/gnrc/ppp/ipcp.h"
+
 #include "net/gnrc/nettype.h"
 #include "net/netopt.h"
-#include "net/netdev2.h"
+#include "net/netdev.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if defined(MODULE_GNRC_PPP) || doxygen
+#if defined(MODULE_GNRC_PPP) || DOXYGEN
 /**
  * @brief class of custom driver control protocol
  * @extends ppp_protocol_t
  *
  * @details the DCP is in charge of monitoring the link and exchanging messages with the ppp device
  */
-typedef struct gnrc_ppp_dcp {
-    gnrc_ppp_protocol_t prot;    /**< base ppp_protocol_t object */
-    msg_t timer_msg;        /**< msg struct for handling timeouts messages */
-    xtimer_t xtimer;        /**< xtimer struct for sending timeout messages */
-    uint8_t dead_counter;   /**< when reaches zero, the link is assumed to be dead */
-} gnrc_ppp_dcp_t;
+//typedef struct gnrc_ppp_dcp {
+//    gnrc_ppp_protocol_t prot;   /**< base ppp_protocol_t object */
+//    msg_t timer_msg;            /**< msg struct for handling timeouts messages */
+//    xtimer_t xtimer;            /**< xtimer struct for sending timeout messages */
+//    uint8_t dead_counter;       /**< when reaches zero, the link is assumed to be dead */
+//} gnrc_ppp_dcp_t;
 #endif
 
 
 /**
  * @brief Extended structure to hold PPP driver state
  *
- * @extends netdev2_t
+ * @extends netdev_t
  *
  * Supposed to be extended by driver implementations.
  * The extended structure should contain all variable driver state.
  */
-typedef struct {
-    netdev2_t netdev;                       /**< @ref netdev2_t base class */
-#if defined(MODULE_GNRC_PPP) || doxygen
+typedef struct netdev_ppp {
+    netdev_t netdev;                       /**< @ref netdev_t base class */
+#if defined(MODULE_GNRC_PPP) || DOXYGEN
     /**
      * @brief PPP specific fields
      * @{
      */
-    gnrc_ppp_dcp_t dcp;                             /**< Control protocol for driver */
-    gnrc_ppp_lcp_t lcp;                             /**< Link Control Protocol */
-    gnrc_ppp_pap_t pap;                             /**< Password Authentication Protocol */
-    gnrc_ppp_ipcp_t ipcp;                  /**< IPv4 Network Control Protocol */
-    gnrc_ppp_ipv4_t ipv4;                  /**< Handler for IPv4 packets */
+//    gnrc_ppp_dcp_t dcp;                    /**< Control protocol for driver */
+//    gnrc_ppp_lcp_t lcp;                    /**< Link Control Protocol */
+//    gnrc_ppp_pap_t pap;                    /**< Password Authentication Protocol */
+//    gnrc_ppp_ipcp_t ipcp;                  /**< IPv4 Network Control Protocol */
+//    gnrc_ppp_ipv4_t ipv4;                  /**< Handler for IPv4 packets */
 #endif
-} netdev2_ppp_t;
+} netdev_ppp_t;
 
 
 /**
- * @brief   Fallback function for netdev2 PPP devices' _get function
+ * @brief   Fallback function for netdev PPP devices' _get function
  *
- * Supposed to be used by netdev2 drivers as default case.
+ * Supposed to be used by netdev drivers as default case.
  *
  * @param[in]   dev     network device descriptor
  * @param[in]   opt     option type
@@ -85,11 +86,11 @@ typedef struct {
  * @return              number of bytes written to @p value
  * @return              <0 on error
  */
-int netdev2_ppp_get(netdev2_ppp_t *dev, netopt_t opt, void *value,
+int netdev_ppp_get(netdev_ppp_t *dev, netopt_t opt, void *value,
                     size_t max_len);
 
 /**
- * @brief   Fallback function for netdev2 PPP devices' _set function
+ * @brief   Fallback function for netdev PPP devices' _set function
  *
  *
  * @param[in] dev       network device descriptor
@@ -100,7 +101,7 @@ int netdev2_ppp_get(netdev2_ppp_t *dev, netopt_t opt, void *value,
  * @return              number of bytes used from @p value
  * @return              <0 on error
  */
-int netdev2_ppp_set(netdev2_ppp_t *dev, netopt_t opt, void *value,
+int netdev_ppp_set(netdev_ppp_t *dev, netopt_t opt, const void *value,
                     size_t value_len);
 
 #ifdef __cplusplus

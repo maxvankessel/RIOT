@@ -44,9 +44,6 @@
 #ifdef MODULE_GNRC_MAC
 #include "net/gnrc/netif/mac.h"
 #endif
-#ifdef MODULE_GNRC_PPP
-#include "net/gnrc/netif/ppp.h"
-#endif
 #include "net/netdev.h"
 #include "rmutex.h"
 
@@ -96,9 +93,6 @@ typedef struct {
 #endif
 #if defined(MODULE_GNRC_SIXLOWPAN) || DOXYGEN
     gnrc_netif_6lo_t sixlo;                 /**< 6Lo component */
-#endif
-#if defined(MODULE_GNRC_PPP) || DOXYGEN
-    gnrc_netif_ppp_t ppp;                   /**< PPP component */
 #endif
     uint8_t cur_hl;                         /**< Current hop-limit for out-going packets */
     uint8_t device_type;                    /**< Device type */

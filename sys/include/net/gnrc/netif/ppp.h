@@ -41,9 +41,8 @@ extern "C" {
  * @return  The network interface on success.
  * @return  NULL, on error.
  */
-gnrc_netif_t *gnrc_netif_ppp_create(char *stack, int stacksize,
-                                       char priority, char *name,
-                                       netdev_t *dev);
+gnrc_netif_t *gnrc_netif_ppp_create(char *stack, int stacksize, char priority,
+                                        char *name, netdev_t *dev);
 
 #ifdef __cplusplus
 }
