@@ -477,6 +477,19 @@ typedef enum {
     NETOPT_DIAL_UP,
 
     /**
+     * @brief set the Async Control Character Map for reception
+     *
+     * Expects a pointer to a network_uint32_t containing the ACCM
+     */
+    NETOPT_HDLC_CONTROL,
+    /**
+     * @brief set the HDLC station address
+     *
+     * Expects a pointer to a uint8_t containing the station id.
+     */
+    NETOPT_HDLC_STATION_ID,
+
+    /**
      * @brief   (@ref netopt_rf_testmode_t) Test mode for the radio, e.g. for CE or FCC certification
      *
      * Get/set the test mode as type @ref netopt_rf_testmode_t or as uint8_t if
