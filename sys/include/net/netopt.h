@@ -396,6 +396,100 @@ typedef enum {
     NETOPT_ENCRYPTION_KEY,
 
     /**
+     * @brief set the APN name of a GSM network
+     *
+     * Expects a string containing APN name
+     */
+
+    NETOPT_APN_NAME,
+
+    /**
+     * @brief set the APN username
+     *
+     * Expects a string containing the APN username
+     */
+    NETOPT_APN_USER,
+
+    /**
+     * @brief set the APN password
+     *
+     * Expects a string containing the APN password
+     */
+    NETOPT_APN_PASS,
+    /**
+     * @brief set the PPP UDP tunnel address (IPv4)
+     *
+     * Expects a pointer to an ipv4_addr_t structure.
+     */
+    NETOPT_TUNNEL_IPV4_ADDRESS,
+    /**
+     * @brief set the UDP port of the tunnel server
+     *
+     * Expects a pointer to a uint16_t port.
+     */
+    NETOPT_TUNNEL_UDP_PORT,
+    /**
+     * @brief set the Async Control Character Map for reception
+     *
+     * Expects a pointer to a network_uint32_t containing the ACCM
+     */
+    NETOPT_PPP_ACCM_RX,
+    /**
+     * @brief set the Async Control Character Map for transmission
+     *
+     * Expects a pointer to a network_uint32_t containing the ACCM
+     */
+    NETOPT_PPP_ACCM_TX,
+    /**
+     * @brief get the state of Link Control Protocol in GNRC PPP
+     *
+     * Expects a pointer to a uint8_t containing the state of the LCP. The state is represented according to the
+     * ppp_protocol_state_t struct. Check the ppp example for usage.
+     */
+    NETOPT_PPP_LCP_STATE,
+    /**
+     * @brief get the state of authentication in GNRC PPP
+     *
+     * Expects a pointer to a uint8_t containing the state of the authentication. The state is represented according to the
+     * ppp_protocol_state_t struct. Check the ppp example for usage.
+     */
+    NETOPT_PPP_AUTH_STATE,
+    /**
+     * @brief get the state of Internet Protocol Control Protocol in GNRC PPP
+     *
+     * Expects a pointer to a uint8_t containing the state of the IPCP. The state is represented according to the
+     * ppp_protocol_state_t struct. Check the ppp example for usage.
+     */
+    NETOPT_PPP_IPCP_STATE,
+    /**
+     * @brief check if a ppp device is ready for transmitting IPv6 data
+     *
+     * Expects a pointer to an uint8_t struct, with positive value if IPv6 transmission is ready. The result of the
+     * option is the same as the pointer.
+     */
+    NETOPT_PPP_IS_IPV6_READY,
+
+    /**
+     * @brief triggers a device driver dial up or hang up.
+     *
+     * Triggers dial up if enabled. Hang up if not. 
+     */
+    NETOPT_DIAL_UP,
+
+    /**
+     * @brief set the Async Control Character Map for reception
+     *
+     * Expects a pointer to a network_uint32_t containing the ACCM
+     */
+    NETOPT_HDLC_CONTROL,
+    /**
+     * @brief set the HDLC station address
+     *
+     * Expects a pointer to a uint8_t containing the station id.
+     */
+    NETOPT_HDLC_STATION_ID,
+
+    /**
      * @brief   (@ref netopt_rf_testmode_t) Test mode for the radio, e.g. for CE or FCC certification
      *
      * Get/set the test mode as type @ref netopt_rf_testmode_t or as uint8_t if
@@ -540,17 +634,12 @@ typedef enum {
     NETOPT_BLE_CTX,
 
     /**
-     * @brief set the Async Control Character Map for reception
+     * @brief   Set link state of the device.
      *
-     * Expects a pointer to a network_uint32_t containing the ACCM
+     * Expects type @ref netopt_enable_t. @ref NETOPT_DISABLE sets the link
+     * down, @ref NETOPT_ENABLE sets the link up.
      */
-    NETOPT_PPP_ACCM_RX,
-    /**
-     * @brief set the Async Control Character Map for transmission
-     *
-     * Expects a pointer to a network_uint32_t containing the ACCM
-     */
-    NETOPT_PPP_ACCM_TX,
+    NETOPT_LINK_STATE,
 
     /* add more options if needed */
 
