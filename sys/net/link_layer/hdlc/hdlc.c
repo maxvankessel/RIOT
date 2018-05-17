@@ -39,16 +39,20 @@
 
 static int _init(netdev_t *netdev)
 {
-    hdlc_t *dev = (hdlc_t *)&dev->netdev;
+    hdlc_t *dev = (hdlc_t *)netdev;
 
     dev->station_id = 0xFF;
     dev->control = 0;
     dev->last_xmit = 0;
 
+    if(netdev->lower != NULL) {
+        netdev->lower->event_callback =  netdev_event_cb_pass;
+    }
+
     /* initialize buffers */
    tsrb_init(&dev->inbuf, (char*)dev->rxmem, sizeof(HDLC_BUFSIZE));
 
-    return netdev_init_pass(netdev);
+   return netdev_init_pass(netdev);
 }
 
 static int _tsrb_peek_one(const tsrb_t * rb)
@@ -189,9 +193,9 @@ static void _isr(netdev_t *netdev)
     for(; bytes_expected; --bytes_expected) {
         uint8_t byte;
 
-        netdev_recv_pass(netdev, &byte, 1, NULL);
-
-        _rx_cb(dev, byte);
+        if(netdev_recv_pass(netdev, &byte, 1, NULL) > 0) {
+            _rx_cb(dev, byte);
+        }
     }
 }
 
@@ -316,9 +320,11 @@ static const netdev_driver_t hdlc_driver = {
     .set = _set,
 };
 
+
 void hdlc_setup(hdlc_t *dev)
 {
     netdev_t *netdev = (netdev_t *)&dev->netdev;
+
 
     netdev->driver = &hdlc_driver;
 }
@@ -326,5 +332,26 @@ void hdlc_setup(hdlc_t *dev)
 void hdlc_hdr_print(hdlc_hdr_t *hdr)
 {
     printf("   address: %" PRIu8 "\n", hdr->address);
-    printf("   control: %" PRIu8 "\n", hdr->control);
+
+    if(hdr->control.frame & (1 << 7)) {
+        /* s or u frame */
+        if(hdr->control.s.id == (1 << 0)) {
+            printf("   control frame: supervisory\n");
+            printf("   control recv seq: %" PRIu8 "\n", hdr->control.s.sequence_no);
+            printf("   control type: %" PRIu8 "\n", hdr->control.s.type);
+        }
+        else {
+            printf("   control frame: unnumbered\n");
+            printf("   control type: %" PRIu8 "\n", hdr->control.u.type);
+            printf("   control type: %" PRIu8 "\n", hdr->control.u.type_x);
+        }
+    }
+    else {
+        /* information frame */
+        printf("   control frame: information\n");
+        printf("   control recv seq: %" PRIu8 "\n", hdr->control.i.sequence_no);
+        printf("   control send seq: %" PRIu8 "\n", hdr->control.i.send_sequence_no);
+    }
+
+    printf("   control : %" PRIu8 "\n", hdr->control.frame);
 }
