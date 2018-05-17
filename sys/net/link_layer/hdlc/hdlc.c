@@ -48,8 +48,6 @@ static int _init(netdev_t *netdev)
     /* initialize buffers */
    tsrb_init(&dev->inbuf, (char*)dev->rxmem, sizeof(HDLC_BUFSIZE));
 
-    netdev->event_callback = _event_cb;
-
     return netdev_init_pass(netdev);
 }
 
@@ -259,7 +257,7 @@ static int _get(netdev_t *netdev, netopt_t opt, void *value, size_t max_len)
     int res = -ENODEV;
     hdlc_t *dev = (hdlc_t *)netdev;
 
-    if (netdev == NULL) {
+    if (dev) {
         switch (opt) {
             case NETOPT_HDLC_CONTROL:
                 *((uint8_t *)value) = dev->control;
@@ -317,16 +315,6 @@ static const netdev_driver_t hdlc_driver = {
     .get = _get,
     .set = _set,
 };
-
-/**
- * @brief   Function called by the device driver on device events
- *
- * @param[in] event     type of event
- */
-static void _event_cb(netdev_t *dev, netdev_event_t event)
-{
-    netdev_event_cb_pass(dev, event);
-}
 
 void hdlc_setup(hdlc_t *dev)
 {
