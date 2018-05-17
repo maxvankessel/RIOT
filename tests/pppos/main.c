@@ -30,13 +30,13 @@
 
 #include "pppos.h"
 
-#define PPPOS_STACKSIZE       (THREAD_STACKSIZE_DEFAULT)
-#ifndef PPPOS_PRIO
-#define PPPOS_PRIO            (GNRC_NETIF_PRIO)
+#define PPP_STACKSIZE         (THREAD_STACKSIZE_DEFAULT)
+#ifndef PPP_PRIO
+#define PPP_PRIO              (GNRC_NETIF_PRIO)
 #endif
 
 static pppos_t _pppos;
-static char _pppos_stack[PPPOS_STACKSIZE];
+static char _ppp_stack[PPP_STACKSIZE];
 
 static const pppos_params_t _pppos_params = {
     .uart = PPPOS_UART,
@@ -52,10 +52,10 @@ int main(void)
 {
     pppos_setup(&_pppos, &_pppos_params);
 
-    netdev_add_layer(&_hdlc, &_pppos);
+    hdlc_setup(&_hdlc);
 
-    gnrc_netif_raw_create(_pppos_stack, PPPOS_STACKSIZE, PPPOS_PRIO, "pppos",
-            (netdev_t *)&_pppos);
+    gnrc_netif_raw_create(_ppp_stack, PPP_STACKSIZE, PPP_PRIO, "ppp",
+            netdev_add_layer((netdev_t *)&_pppos, (netdev_t *)&_hdlc));
 
     gnrc_netreg_entry_t dump = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
                                                           gnrc_pktdump_pid);

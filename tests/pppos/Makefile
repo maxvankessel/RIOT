@@ -11,7 +11,6 @@ USEMODULE += gnrc
 USEMODULE += gnrc_pktdump
 USEMODULE += gnrc_txtsnd
 USEMODULE += pppos
-USEMODULE += hdlc
 USEMODULE += shell
 USEMODULE += shell_commands
 
