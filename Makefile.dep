@@ -19,6 +19,12 @@ ifneq (,$(filter csma_sender,$(USEMODULE)))
   USEMODULE += xtimer
 endif
 
+ifneq (,$(filter hdlc,$(USEMODULE)))
+  USEMODULE += netdev_layer
+  USEMODULE += tsrb
+  USEMODULE += xtimer
+endif
+
 ifneq (,$(filter gnrc_mac,$(USEMODULE)))
   USEMODULE += gnrc_priority_pktqueue
   USEMODULE += csma_sender

@@ -21,8 +21,12 @@
 #ifndef NET_HDLC_H
 #define NET_HDLC_H
 
+#include <stdint.h>
+
 #include "hdlc/hdr.h"
+#include "net/netdev.h"
 #include "byteorder.h"
+#include "tsrb.h"
 #include "xtimer.h"
 
 #ifdef __cplusplus
