@@ -87,7 +87,8 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
 
         for (unsigned j = 0; j < iol->iol_len; j++, data++) {
             if (NEED_ESCAPE(dev->accm.tx, *data)) {
-                uart_write(dev->config.uart, (uint8_t *)HDLC_CONTROL_ESCAPE, 1);
+                uint8_t esc = HDLC_CONTROL_ESCAPE;
+                uart_write(dev->config.uart, &esc, 1);
                 *data ^= HDLC_SIX_CMPL;
             }
 
