@@ -50,15 +50,24 @@ static hdlc_t _hdlc;
  */
 int main(void)
 {
+    hdlc_control_u_frame_t frame = {
+            .id = HDLC_FRAME_TYPE_UNNUMBERED,
+            .type = 0,
+            .poll_final = 0,
+            .type_x = 0,
+    };
+
     pppos_setup(&_pppos, &_pppos_params);
 
     hdlc_setup(&_hdlc);
 
-    gnrc_netif_raw_create(_ppp_stack, PPP_STACKSIZE, PPP_PRIO, "ppp",
+    gnrc_netif_t * iface = gnrc_netif_raw_create(_ppp_stack, PPP_STACKSIZE, PPP_PRIO, "ppp",
             netdev_add_layer((netdev_t *)&_pppos, (netdev_t *)&_hdlc));
 
     gnrc_netreg_entry_t dump = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
                                                           gnrc_pktdump_pid);
+
+    gnrc_netapi_set(iface->pid, NETOPT_HDLC_CONTROL, 0, (void *)&frame, sizeof(hdlc_control_u_frame_t));
 
     puts("PPPOS test");
 
