@@ -18,11 +18,10 @@
 #include <stdbool.h>
 
 #include "net/hdlc.h"
+#include "net/netdev.h"
 
 #include "log.h"
 #include "xtimer.h"
-
-#include "net/netdev/layer.h"
 
 #include "pppos.h"
 
@@ -78,7 +77,6 @@ static int _init(netdev_t *netdev)
 static int _send(netdev_t *netdev, const iolist_t *iolist)
 {
     pppos_t *dev = (pppos_t *)netdev;
-    uint16_t fcs;
 
     int bytes = 0;
 
