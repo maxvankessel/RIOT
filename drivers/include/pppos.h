@@ -22,10 +22,12 @@
 #define PPPOS_H
 
 #include <stdint.h>
+#include <unistd.h>
 
 #include "net/netdev/ppp.h"
 #include "periph/uart.h"
 #include "periph/gpio.h"
+#include "at.h"
 #include "tsrb.h"
 
 #ifdef __cplusplus
@@ -41,6 +43,10 @@ extern "C" {
  */
 #ifndef PPPOS_BUFSIZE
 #define PPPOS_BUFSIZE (128U)
+#endif
+
+#ifndef PPPOS_APN_SIZE
+#define PPPOS_APN_SIZE  (64)
 #endif
 
 /**
@@ -60,8 +66,10 @@ typedef struct {
  * @extends netdev_ppp_t
  */
 typedef struct {
-    netdev_ppp_t netdev;                    /**< parent class */
-    pppos_params_t config;                  /**< configuration parameters */
+    netdev_ppp_t netdev;            /**< parent class */
+    pppos_params_t config;          /**< configuration parameters */
+
+    at_dev_t at;                    /**< AT parser */
 
     struct {
         uint32_t rx;
@@ -70,6 +78,8 @@ typedef struct {
 
     tsrb_t inbuf;                   /**< RX buffer */
     uint8_t rxmem[PPPOS_BUFSIZE];   /**< memory used by RX buffer */
+
+    char apn[PPPOS_APN_SIZE];
 
 } pppos_t;
 

@@ -20,7 +20,9 @@
 #include "net/hdlc.h"
 #include "net/netdev.h"
 
+#include "at.h"
 #include "log.h"
+#include "fmt.h"
 #include "xtimer.h"
 
 #include "pppos.h"
@@ -35,6 +37,7 @@
 #define ESCAPE_P(accm, c)       ((c > 0x1f) ? c : ((accm) & (1 << c)) ? 0 : c)
 #define NEED_ESCAPE(accm, c)    (((c < 0x1f) && ((accm) & (1 << c))) ? c : 0)
 
+int _dialup(pppos_t *dev, const char * number);
 
 static void _pppos_rx_cb(void *arg, uint8_t byte)
 {
@@ -64,13 +67,20 @@ static int _init(netdev_t *netdev)
     DEBUG(MODULE"initializing device %p on UART %i with baudrate %" PRIu32 "\n",
           (void *)dev, dev->config.uart, dev->config.baudrate);
 
-    /* initialize buffers */
-    tsrb_init(&dev->inbuf, (char*)dev->rxmem, sizeof(PPPOS_BUFSIZE));
-    if(uart_init(dev->config.uart, dev->config.baudrate, _pppos_rx_cb, dev) != UART_OK) {
-        LOG_ERROR(MODULE"error initializing UART %i with baudrate %" PRIu32 "\n",
-                  dev->config.uart, dev->config.baudrate);
+    /* initialize at parser */
+    if(at_dev_init(&dev->at, dev->config.uart, dev->config.baudrate,
+            (char*)dev->rxmem, PPPOS_BUFSIZE) < 0) {
+        LOG_ERROR(
+                MODULE"error initializing AT parser on uart %i with baudrate %" PRIu32 "\n",
+                dev->config.uart, dev->config.baudrate);
         return -ENODEV;
     }
+
+    if(at_send_cmd_wait_ok(&dev->at, "AT", (1 * US_PER_SEC)) != 0) {
+        LOG_ERROR(MODULE" no modem response on \"AT\"\n");
+        return -EIO;
+    }
+
     return 0;
 }
 
@@ -143,6 +153,7 @@ static void _isr(netdev_t *dev)
 static int _get(netdev_t *netdev, netopt_t opt, void *value, size_t max_len)
 {
     int res = -ENOTSUP;
+    pppos_t *dev = (pppos_t *)netdev;
 
     if (netdev == NULL) {
         return -ENODEV;
@@ -156,6 +167,10 @@ static int _get(netdev_t *netdev, netopt_t opt, void *value, size_t max_len)
             assert(max_len == sizeof(uint16_t));
             *((uint16_t *)value) = NETDEV_TYPE_PPPOS;
             res = sizeof(uint16_t);
+            break;
+        case NETOPT_APN_NAME:
+            res = (max_len > PPPOS_APN_SIZE) ? max_len : PPPOS_APN_SIZE;
+            strncpy(value, dev->apn, res);
             break;
         default:
             res = -ENOTSUP;
@@ -189,8 +204,20 @@ static int _set(netdev_t *netdev, netopt_t opt, const void *value,
             dev->accm.tx = byteorder_ntohl(*nu32);
             res = sizeof(network_uint32_t);
             break;
+        case NETOPT_APN_NAME:
+            res = (value_len < PPPOS_APN_SIZE) ? value_len : PPPOS_APN_SIZE;
+            strncpy(dev->apn, value, res);
+            break;
+        case NETOPT_DIAL_UP:
+            res = _dialup(dev, value);
+            break;
+
         default:
             res = -ENOTSUP;
+
+//            NETOPT_APN_USER,
+//
+//            NETOPT_APN_PASS,
     }
 
     if (res == -ENOTSUP) {
@@ -208,6 +235,71 @@ static const netdev_driver_t pppos_driver = {
     .get = _get,
     .set = _set,
 };
+
+int _dialup(pppos_t *dev, const char * number)
+{
+    int err;
+    char buf[128] = { 0 };
+    char *pos = buf;
+
+    /* TODO: make dynamic */
+    uint8_t ctx = 1;
+    const char * user = NULL;
+    const char * pass = NULL;
+
+    pos += fmt_str(pos, "AT+CGDCONT=");
+    pos += fmt_u32_dec(pos, ctx);
+    pos += fmt_str(pos, ",\"");
+    pos += fmt_str(pos, "PPP");
+    pos += fmt_str(pos, "\",\"");
+    pos += fmt_str(pos, dev->apn);
+
+    if(user) {
+        pos += fmt_str(pos, "\",\"");
+        pos += fmt_str(pos, user);
+
+        if(pass) {
+            pos += fmt_str(pos, "\",\"");
+            pos += fmt_str(pos, pass);
+        }
+    }
+    pos += fmt_str(pos, "\"\0");
+
+    /* AT+CGDCONT=<ctx>,"<type>","<apn>"[,"<user>",["<pass>"]] */
+    err = at_send_cmd_wait_ok(&dev->at, buf, (5 * US_PER_SEC));
+    if(err < 0) {
+        LOG_ERROR(MODULE" no modem response\n");
+        return -EIO;
+    }
+
+    pos = buf;
+    pos += fmt_str(pos, "ATD");
+    pos += fmt_str(pos, number);
+    *pos = '\0';
+
+    err = at_send_cmd_get_resp(&dev->at, buf, buf, 128, (5 * US_PER_SEC));
+    if(err < 0) {
+         LOG_ERROR(MODULE" no modem response\n");
+         return -EIO;
+     }
+    else if (err > 0) {
+        if(strncmp(buf, "CONNECT", 7) != 0) {
+            LOG_ERROR(MODULE"unexpected response: %s\n", buf);
+            return -EIO;
+        }
+    }
+    else {
+        return -EIO;
+    }
+
+    at_drain(&dev->at);
+
+    tsrb_init(&dev->inbuf, (char *)dev->rxmem, PPPOS_BUFSIZE);
+
+    uart_init(dev->config.uart, dev->config.baudrate, _pppos_rx_cb, dev);
+
+    return 0;
+}
 
 void pppos_setup(pppos_t *dev, const pppos_params_t *params)
 {
