@@ -17,9 +17,6 @@
  *
  * @}
  */
-
-#define AT_EOL "\r\n"
-
 #include <stdio.h>
 
 #include "shell.h"
