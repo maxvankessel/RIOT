@@ -17,7 +17,6 @@
  *
  * @}
  */
-
 #include <stdio.h>
 
 #include "shell.h"
@@ -45,6 +44,39 @@ static const pppos_params_t _pppos_params = {
 
 static hdlc_t _hdlc;
 
+static gnrc_netif_t *_iface;
+
+int _ppp_dialout_handler(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    int result = -1;
+
+    if (argc < 2) {
+            printf("Usage: %s <apn>\n", argv[0]);
+            return 1;
+    }
+
+    if(_iface) {
+        result = gnrc_netapi_set(_iface->pid, NETOPT_APN_NAME, 0, argv[1], strlen(argv[1]));
+
+        result = gnrc_netapi_set(_iface->pid, NETOPT_DIAL_UP, 0, "*99#", 5);
+    }
+    if(result >= 0) {
+        printf("PPP dialout success\n");
+    }
+    else {
+        printf("Failed to dialout PPP\n");
+    }
+
+    return 0;
+}
+
+static const shell_command_t commands[] = {
+    {"dial",     "PPP Dial out",        _ppp_dialout_handler},
+    {NULL, NULL, NULL}
+};
+
 /**
  * @brief   Maybe you are a golfer?!
  */
@@ -61,13 +93,13 @@ int main(void)
 
     hdlc_setup(&_hdlc);
 
-    gnrc_netif_t * iface = gnrc_netif_raw_create(_ppp_stack, PPP_STACKSIZE, PPP_PRIO, "ppp",
+    _iface = gnrc_netif_raw_create(_ppp_stack, PPP_STACKSIZE, PPP_PRIO, "ppp",
             netdev_add_layer((netdev_t *)&_pppos, (netdev_t *)&_hdlc));
 
     gnrc_netreg_entry_t dump = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
                                                           gnrc_pktdump_pid);
 
-    gnrc_netapi_set(iface->pid, NETOPT_HDLC_CONTROL, 0, (void *)&frame, sizeof(hdlc_control_u_frame_t));
+    gnrc_netapi_set(_iface->pid, NETOPT_HDLC_CONTROL, 0, (void *)&frame, sizeof(hdlc_control_u_frame_t));
 
     puts("PPPOS test");
 
@@ -83,7 +115,7 @@ int main(void)
     puts("Initialization OK, starting shell now");
 
     char line_buf[SHELL_DEFAULT_BUFSIZE];
-    shell_run(NULL, line_buf, SHELL_DEFAULT_BUFSIZE);
+    shell_run(commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
     return 0;
 }
