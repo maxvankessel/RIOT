@@ -27,7 +27,7 @@
 
 #include "pppos.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 #define MODULE  "pppos: "
@@ -209,8 +209,25 @@ static int _set(netdev_t *netdev, netopt_t opt, const void *value,
             strncpy(dev->apn, value, res);
             break;
         case NETOPT_DIAL_UP:
-            res = _dialup(dev, value);
-            break;
+            if(value) {
+                res = _dialup(dev, value);
+            }
+            else {
+                if (netdev->event_callback != NULL) {
+                    netdev->event_callback(netdev, NETDEV_EVENT_LAYER_DOWN);
+                }
+
+                uart_close(dev->config.uart);
+                /* initialize at parser */
+                if(at_dev_init(&dev->at, dev->config.uart, dev->config.baudrate,
+                        (char*)dev->rxmem, PPPOS_BUFSIZE) < 0) {
+                    LOG_ERROR(
+                            MODULE"error initializing AT parser on uart %i with baudrate %" PRIu32 "\n",
+                            dev->config.uart, dev->config.baudrate);
+                    return -ENODEV;
+                }
+            }
+        break;
 
         default:
             res = -ENOTSUP;
@@ -279,9 +296,15 @@ int _dialup(pppos_t *dev, const char * number)
 
     at_drain(&dev->at);
 
+    uart_close(dev->config.uart);
+
     tsrb_init(&dev->inbuf, (char *)dev->rxmem, PPPOS_BUFSIZE);
 
     uart_init(dev->config.uart, dev->config.baudrate, _pppos_rx_cb, dev);
+
+    if (((netdev_t*)(dev))->event_callback != NULL) {
+        ((netdev_t*)(dev))->event_callback((netdev_t*)dev, NETDEV_EVENT_LAYER_UP);
+    }
 
     return 0;
 }
