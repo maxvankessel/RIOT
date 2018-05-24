@@ -214,10 +214,6 @@ static int _set(netdev_t *netdev, netopt_t opt, const void *value,
 
         default:
             res = -ENOTSUP;
-
-//            NETOPT_APN_USER,
-//
-//            NETOPT_APN_PASS,
     }
 
     if (res == -ENOTSUP) {
@@ -244,28 +240,17 @@ int _dialup(pppos_t *dev, const char * number)
 
     /* TODO: make dynamic */
     uint8_t ctx = 1;
-    const char * user = NULL;
-    const char * pass = NULL;
+    const char * ctx_type = "IP";
 
     pos += fmt_str(pos, "AT+CGDCONT=");
     pos += fmt_u32_dec(pos, ctx);
     pos += fmt_str(pos, ",\"");
-    pos += fmt_str(pos, "PPP");
+    pos += fmt_str(pos, ctx_type);
     pos += fmt_str(pos, "\",\"");
     pos += fmt_str(pos, dev->apn);
-
-    if(user) {
-        pos += fmt_str(pos, "\",\"");
-        pos += fmt_str(pos, user);
-
-        if(pass) {
-            pos += fmt_str(pos, "\",\"");
-            pos += fmt_str(pos, pass);
-        }
-    }
     pos += fmt_str(pos, "\"\0");
 
-    /* AT+CGDCONT=<ctx>,"<type>","<apn>"[,"<user>",["<pass>"]] */
+    /* AT+CGDCONT=<ctx>,"<type>","<apn>" */
     err = at_send_cmd_wait_ok(&dev->at, buf, (5 * US_PER_SEC));
     if(err < 0) {
         LOG_ERROR(MODULE" no modem response\n");
