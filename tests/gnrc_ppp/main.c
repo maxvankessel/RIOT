@@ -30,7 +30,7 @@
 
 #include "pppos.h"
 
-#define PPP_STACKSIZE       (THREAD_STACKSIZE_DEFAULT)
+#define PPP_STACKSIZE       (2 * THREAD_STACKSIZE_DEFAULT)
 #ifndef PPP_PRIO
 #define PPP_PRIO            (GNRC_NETIF_PRIO)
 #endif
@@ -84,12 +84,6 @@ static const shell_command_t commands[] = {
  */
 int main(void)
 {
-    hdlc_control_u_frame_t frame = {
-             .id = HDLC_FRAME_TYPE_UNNUMBERED,
-             .type = 0,
-             .poll_final = 0,
-             .type_x = 0,
-     };
 
     pppos_setup(&_pppos, &_pppos_params);
 
@@ -101,9 +95,6 @@ int main(void)
     gnrc_netreg_entry_t dump =
             GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
                     gnrc_pktdump_pid);
-
-    gnrc_netapi_set(_iface->pid, NETOPT_HDLC_CONTROL, 0, (void *)&frame,
-            sizeof(hdlc_control_u_frame_t));
 
     puts("PPP test");
 
