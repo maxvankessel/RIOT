@@ -96,28 +96,31 @@ void lcp_mru_set(gnrc_ppp_fsm_t *lcp, gnrc_ppp_option_t *opt, uint8_t peer)
 
 uint8_t lcp_accm_is_valid(gnrc_ppp_option_t *opt)
 {
+    (void)opt;
+
     /*Flags are always valid*/
     return true;
 }
 
 uint8_t lcp_accm_build_nak_opts(uint8_t *buf)
 {
+    (void)buf;
+
     /* Never called */
     return true;
 }
 
 void lcp_accm_set(gnrc_ppp_fsm_t *lcp, gnrc_ppp_option_t *opt, uint8_t peer)
 {
-    gnrc_netdev2_t *dev = ((gnrc_ppp_protocol_t *) lcp)->pppdev;
-    netdev2_t *netdev = (netdev2_t*) dev->dev;
+    netdev_t *dev = ((gnrc_ppp_protocol_t *) lcp)->netif->dev;
     uint8_t *payload;
 
     ppp_opt_get_payload(opt, (void **) &payload);
     if (peer) {
-        netdev->driver->set(netdev, NETOPT_PPP_ACCM_RX, (void *) payload, sizeof(uint32_t));
+        dev->driver->set(dev, NETOPT_PPP_ACCM_RX, (void *) payload, sizeof(uint32_t));
     }
     else {
-        netdev->driver->set(netdev, NETOPT_PPP_ACCM_TX, (void *) payload, sizeof(uint32_t));
+        dev->driver->set(dev, NETOPT_PPP_ACCM_TX, (void *) payload, sizeof(uint32_t));
     }
 }
 
@@ -152,6 +155,7 @@ uint8_t lcp_auth_build_nak_opts(uint8_t *buf)
 
 void lcp_auth_set(gnrc_ppp_fsm_t *lcp, gnrc_ppp_option_t *opt, uint8_t peer)
 {
+    (void)opt;
     gnrc_ppp_lcp_t *l = (gnrc_ppp_lcp_t *) lcp;
 
     if (peer) {
@@ -203,7 +207,7 @@ int lcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
         /*Send Echo Request*/
         DEBUG("gnrc_ppp: Sending echo request (link monitor)");
         gnrc_pktsnip_t *pkt = pkt_build(GNRC_NETTYPE_LCP, GNRC_PPP_ECHO_REQ, ((gnrc_ppp_lcp_t *) lcp)->monitor_id++, NULL);
-        gnrc_ppp_send(protocol->pppdev, pkt);
+        protocol->netif->ops->send(protocol->netif, pkt);
         return 0;
     }
     else if (ppp_event == PPP_UL_FINISHED) {
@@ -215,13 +219,13 @@ int lcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
     }
 }
 
-int lcp_init(gnrc_netdev2_t *ppp_dev)
+int lcp_init(gnrc_netif_t *netif)
 {
-    netdev2_ppp_t *pppdev = (netdev2_ppp_t*) ppp_dev->dev;
+    netdev_ppp_t *pppdev = (netdev_ppp_t*) netif->dev;
     gnrc_ppp_fsm_t *lcp = (gnrc_ppp_fsm_t *) &pppdev->lcp;
 
-    ppp_protocol_init((gnrc_ppp_protocol_t*) lcp, ppp_dev, lcp_handler, PROT_LCP);
-    fsm_init(ppp_dev, lcp);
+    ppp_protocol_init((gnrc_ppp_protocol_t*) lcp, netif, lcp_handler, PROT_LCP);
+    fsm_init(netif, lcp);
     lcp_config_init(lcp);
 
     lcp->supported_codes = FLAG_CONF_REQ | FLAG_CONF_ACK | FLAG_CONF_NAK | FLAG_CONF_REJ | FLAG_TERM_REQ | FLAG_TERM_ACK | FLAG_CODE_REJ | FLAG_ECHO_REQ | FLAG_ECHO_REP | FLAG_DISC_REQ;

@@ -72,7 +72,7 @@ struct gnrc_ppp_fsm_t;
  *
  * @return 0
  */
-int ipcp_init(gnrc_netdev2_t *ppp_dev);
+int ipcp_init(gnrc_netif_t *netif);
 
 
 /**
@@ -84,7 +84,7 @@ int ipcp_init(gnrc_netdev2_t *ppp_dev);
  *
  * @return 0
  */
-int ppp_ipv4_init(gnrc_netdev2_t *ppp_dev);
+int ppp_ipv4_init(gnrc_netif_t *netif);
 
 /**
  * @brief send an encapsulated pkt
@@ -95,7 +95,7 @@ int ppp_ipv4_init(gnrc_netdev2_t *ppp_dev);
  * @return negative value if there was an error
  * @return 0 otherwise
  */
-int ppp_ipv4_send(gnrc_netdev2_t *ppp_dev, gnrc_pktsnip_t *pkt);
+int ppp_ipv4_send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt);
 
 
 /**
@@ -106,7 +106,7 @@ int ppp_ipv4_send(gnrc_netdev2_t *ppp_dev, gnrc_pktsnip_t *pkt);
  *
  * @return
  */
-gnrc_pktsnip_t *ppp_ipv4_recv(gnrc_netdev2_t *ppp_dev, gnrc_pktsnip_t *pkt);
+gnrc_pktsnip_t *ppp_ipv4_recv(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt);
 
 
 /**

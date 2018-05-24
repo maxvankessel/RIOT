@@ -73,7 +73,7 @@ struct gnrc_ppp_fsm_t;
  *
  * @return 0
  */
-int lcp_init(gnrc_netdev2_t *ppp_dev);
+int lcp_init(gnrc_netif_t *netif);
 gnrc_ppp_protocol_t *lcp_get_static_pointer(void);
 
 #ifdef __cplusplus

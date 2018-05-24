@@ -53,6 +53,18 @@ typedef struct __attribute__((packed)){
     network_uint16_t protocol;  /**< protocol field, identifies datagram encapsulated in information field*/
 } ppp_hdr_t;
 
+#define LCP_CONF_REQ (1)        /**< Code of Configure Request packet */
+#define LCP_CONF_ACK (2)        /**< Code of Configure Ack packet */
+#define LCP_CONF_NAK (3)        /**< Code of Configure NAK packet */
+#define LCP_CONF_REJ (4)        /**< Code of Configure Reject packet */
+#define LCP_TERM_REQ (5)        /**< Code of Temrminate Request packet */
+#define LCP_TERM_ACK (6)        /**< Code of Terminate ACK packet */
+#define LCP_CODE_REJ (7)        /**< Code of Code Reject packet */
+#define LCP_PROT_REJ (8)        /**< Code of Protocol Reject packet */
+#define LCP_ECHO_REQ (9)        /**< Code of Echo Request packet */
+#define LCP_ECHO_REP (10)       /**< Code of Echo Reply packet */
+#define LCP_DISC_REQ (11)       /**< Code of Discard Request packet */
+
 /**
  * @brief   Header of a LCP packet
  *

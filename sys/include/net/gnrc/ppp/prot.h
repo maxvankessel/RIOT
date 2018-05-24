@@ -19,7 +19,6 @@
 #ifndef GNRC_PPP_PROTOCOL_H
 #define GNRC_PPP_PROTOCOL_H
 
-#include "net/gnrc/netdev2.h"
 #include "net/gnrc.h"
 #include "xtimer.h"
 #include <inttypes.h>
@@ -66,7 +65,7 @@ typedef struct gnrc_ppp_protocol gnrc_ppp_protocol_t;
 /**
  * @brief Base class of a generic PPP protocol
  */
-typedef struct gnrc_ppp_protocol {
+struct gnrc_ppp_protocol {
     /**
      * @brief handler of current protocol
      *
@@ -75,11 +74,11 @@ typedef struct gnrc_ppp_protocol {
     int (*handler)(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args);
     uint8_t id;                     /**< unique id of this protocol */
     msg_t msg;                      /**< msg structure for sending messages between protocols */
-    gnrc_netdev2_t *pppdev;   /**< pointer to GNRC pppdev interface */
+    gnrc_netif_t *netif;   /**< pointer to GNRC pppdev interface */
     gnrc_ppp_protocol_state_t state;     /**< state of current protocol */
     gnrc_ppp_target_t upper_layer;       /**< target of the upper layer of this protocol */
     gnrc_ppp_target_t lower_layer;       /**< target of the lower layer of this protocol */
-} gnrc_ppp_protocol_t;
+};
 
 /**
  * @brief sets a ppp message based on target and event
@@ -119,24 +118,6 @@ static inline gnrc_ppp_event_t ppp_msg_get_event(gnrc_ppp_msg_t ppp_msg)
 }
 
 /**
- * @brief send a ppp event given a ppp message
- *
- * @param msg pointer to a msg structure
- * @param ppp_msg ppp message coding target and event
- */
-void send_ppp_event(msg_t *msg, gnrc_ppp_msg_t ppp_msg);
-
-/**
- * @brief same as send_ppp_event, but the message is sent after an xtimer timeout
- *
- * @param msg pointer to a msg structure
- * @param xtimer pointer to an xtimer structure
- * @param ppp_msg ppp message coding target and event
- * @param timeout milliseconds before the message is delivered.
- */
-void send_ppp_event_xtimer(msg_t *msg, xtimer_t *xtimer, gnrc_ppp_msg_t ppp_msg, int timeout);
-
-/**
  * @brief inits a ppp protocol
  *
  * @param protocol pointer to ppp protocol
@@ -144,7 +125,13 @@ void send_ppp_event_xtimer(msg_t *msg, xtimer_t *xtimer, gnrc_ppp_msg_t ppp_msg,
  * @param handler pointer to handler callback
  * @param id unique id of this protocol
  */
-void ppp_protocol_init(gnrc_ppp_protocol_t *protocol, gnrc_netdev2_t *pppdev, int (*handler)(gnrc_ppp_protocol_t *, uint8_t, void *), uint8_t id);
+static inline void ppp_protocol_init(gnrc_ppp_protocol_t *protocol, gnrc_netif_t *netif, int (*handler)(gnrc_ppp_protocol_t *, uint8_t, void *), uint8_t id)
+{
+    protocol->handler = handler;
+    protocol->id = id;
+    protocol->netif = netif;
+    protocol->state = PROTOCOL_DOWN;
+}
 
 
 #ifdef __cplusplus

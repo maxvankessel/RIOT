@@ -25,11 +25,13 @@
 
 int dcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
 {
+    (void)args;
+
     msg_t *msg = &protocol->msg;
     msg_t *timer_msg = &((gnrc_ppp_dcp_t *) protocol)->timer_msg;
     xtimer_t *xtimer = &((gnrc_ppp_dcp_t *) protocol)->xtimer;
     gnrc_ppp_dcp_t *dcp = (gnrc_ppp_dcp_t *) protocol;
-    netdev2_t *pppdev = (netdev2_t*) protocol->pppdev->dev;
+    netdev_t *pppdev = (netdev_t*) protocol->netif->dev;
 
     netopt_enable_t en;
     switch (ppp_event) {
@@ -78,10 +80,10 @@ int dcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
     }
     return 0;
 }
-int dcp_init(gnrc_netdev2_t *ppp_dev)
+int dcp_init(gnrc_netif_t *netif)
 {
-    netdev2_ppp_t *pppdev = (netdev2_ppp_t*) ppp_dev->dev;
-    ppp_protocol_init((gnrc_ppp_protocol_t*) &pppdev->dcp, ppp_dev, dcp_handler, PROT_DCP);
+    netdev_ppp_t *pppdev = (netdev_ppp_t*) netif->dev;
+    ppp_protocol_init((gnrc_ppp_protocol_t*) &pppdev->dcp, netif, dcp_handler, PROT_DCP);
     pppdev->dcp.dead_counter = GNRC_PPP_DCP_DEAD_COUNTER;
     return 0;
 }

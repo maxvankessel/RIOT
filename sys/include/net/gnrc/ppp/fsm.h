@@ -196,7 +196,7 @@ static const uint16_t actions[PPP_NUM_EVENTS][PPP_NUM_STATES] = {
  * @extends ppp_protocol_t
  *
  */
-typedef struct gnrc_ppp_fsm {
+struct gnrc_ppp_fsm {
     gnrc_ppp_protocol_t prot;                                            /**< base class of FSM */
     gnrc_nettype_t prottype;                                        /**< GNRC NETTYPE of FSM */
     uint16_t supported_codes;                                       /**< supported codes of current FSM */
@@ -212,12 +212,12 @@ typedef struct gnrc_ppp_fsm {
     gnrc_ppp_fsm_conf_t *conf;                                               /**< configuration array of current FSM */
     void (*on_layer_up)(gnrc_ppp_fsm_t *cp);                             /**< Optional callback when current FSM is ready. */
     void (*on_layer_down)(gnrc_ppp_fsm_t *cp);                           /**< Optional callback when current FSM is down */
-} gnrc_ppp_fsm_t;
+};
 
 /**
  * @brief Data type or representing a PPP option
  */
-typedef struct gnrc_ppp_fsm_conf {
+struct gnrc_ppp_fsm_conf {
     uint8_t type;                   /**< Option type */
     network_uint32_t value;         /**< Current option value */
     network_uint32_t default_value; /**< Default value of option (for resetting purposes). */
@@ -248,7 +248,7 @@ typedef struct gnrc_ppp_fsm_conf {
                                      */
     void (*set)(gnrc_ppp_fsm_t *t, gnrc_ppp_option_t *opt, uint8_t peer);
     gnrc_ppp_fsm_conf_t *next;        /**< pointer to next configuration */
-} gnrc_ppp_fsm_conf_t;
+};
 
 /**
  * @brief init the Option Negotiation Automaton FSM
@@ -258,7 +258,7 @@ typedef struct gnrc_ppp_fsm_conf {
  *
  * @return 0 for now.
  */
-int fsm_init(gnrc_netdev2_t *ppp_dev, gnrc_ppp_fsm_t *cp);
+int fsm_init(gnrc_netif_t *netif, gnrc_ppp_fsm_t *cp);
 /**
  * @brief triggers an event in the FSM
  *

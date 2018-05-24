@@ -89,14 +89,13 @@ typedef struct __attribute__((packed)) {
  *
  */
 typedef struct __attribute__((packed)) {
-    uint8_t address;            /**< Address field oh HDLC header */
+    uint8_t address;                /**< Address field oh HDLC header */
     union{
-        hdlc_control_s_frame_t s;            /**< Control field of HDLC header */
+        hdlc_control_s_frame_t s;
         hdlc_control_i_frame_t i;
         hdlc_control_u_frame_t u;
-        uint8_t frame;
+        uint8_t frame;              /**< Control field of HDLC header */
     }control;
-    network_uint16_t protocol;  /**< Protocol field of HDLC header */
 } hdlc_hdr_t;
 
 #ifdef __cplusplus

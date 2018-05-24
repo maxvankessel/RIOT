@@ -26,8 +26,6 @@
 #include "net/gnrc.h"
 #include "net/ppptype.h"
 #include "net/gnrc/ppp/ppp.h"
-#include "net/gnrc/ppp/lcp.h"
-#include "net/gnrc/ppp/ipcp.h"
 #include "net/gnrc/ppp/fsm.h"
 #include "net/hdlc/hdr.h"
 #include "net/ppp/hdr.h"
@@ -48,12 +46,12 @@
 #define FOR_EACH_CONF(conf, head) \
     for (gnrc_ppp_fsm_conf_t *conf = head; conf != NULL; conf = conf->next)
 
-ppp_hdr_t *_get_ppp_hdr(gnrc_pktsnip_t *pkt)
+lcp_hdr_t *_get_hdr(gnrc_pktsnip_t *pkt)
 {
-    return pkt->type == GNRC_NETTYPE_UNDEF ? (ppp_hdr_t *) pkt->next->data : (ppp_hdr_t *) pkt->data;
+    return pkt->type == GNRC_NETTYPE_UNDEF ? (lcp_hdr_t *) pkt->next->data : (lcp_hdr_t *) pkt->data;
 }
 
-int _pkt_has_payload(ppp_hdr_t *hdr)
+int _pkt_has_payload(lcp_hdr_t *hdr)
 {
     return byteorder_ntohs(hdr->length) > sizeof(ppp_hdr_t);
 }
@@ -62,7 +60,7 @@ void set_timeout(gnrc_ppp_fsm_t *cp, uint32_t time)
 {
     gnrc_ppp_target_t self = ((gnrc_ppp_protocol_t *)cp)->id;
 
-    send_ppp_event_xtimer(&((gnrc_ppp_protocol_t *) cp)->msg, &cp->xtimer, ppp_msg_set(self, PPP_TIMEOUT), cp->restart_timer);
+    send_ppp_event_xtimer(&((gnrc_ppp_protocol_t *) cp)->msg, &cp->xtimer, ppp_msg_set(self, PPP_TIMEOUT), time);
 }
 
 void _reset_cp_conf(gnrc_ppp_fsm_conf_t *conf)
@@ -293,6 +291,8 @@ gnrc_ppp_target_t _fsm_lower_layer(gnrc_ppp_fsm_t *cp)
 }
 void tlu(gnrc_ppp_fsm_t *cp, void *args)
 {
+    (void)args;
+
     _reset_cp_conf(cp->conf);
     ((gnrc_ppp_protocol_t *) cp)->state = PROTOCOL_UP;
     if (cp->on_layer_up) {
@@ -304,6 +304,7 @@ void tlu(gnrc_ppp_fsm_t *cp, void *args)
 
 void tld(gnrc_ppp_fsm_t *cp, void *args)
 {
+    (void)args;
     _reset_cp_conf(cp->conf);
     ((gnrc_ppp_protocol_t *) cp)->state = PROTOCOL_DOWN;
     if (cp->on_layer_down) {
@@ -315,6 +316,7 @@ void tld(gnrc_ppp_fsm_t *cp, void *args)
 
 void tls(gnrc_ppp_fsm_t *cp, void *args)
 {
+    (void)args;
     _reset_cp_conf(cp->conf);
     send_ppp_event(&((gnrc_ppp_protocol_t *) cp)->msg, ppp_msg_set(_fsm_lower_layer(cp), PPP_UL_STARTED));
     (void) cp;
@@ -322,6 +324,7 @@ void tls(gnrc_ppp_fsm_t *cp, void *args)
 
 void tlf(gnrc_ppp_fsm_t *cp, void *args)
 {
+    (void)args;
     send_ppp_event(&((gnrc_ppp_protocol_t *) cp)->msg, ppp_msg_set(_fsm_lower_layer(cp), PPP_UL_FINISHED));
     (void) cp;
 }
@@ -336,6 +339,7 @@ void irc(gnrc_ppp_fsm_t *cp, void *args)
 
 void zrc(gnrc_ppp_fsm_t *cp, void *args)
 {
+    (void)args;
     cp->restart_counter = 0;
     set_timeout(cp, cp->restart_timer);
 }
@@ -343,6 +347,7 @@ void zrc(gnrc_ppp_fsm_t *cp, void *args)
 
 void scr(gnrc_ppp_fsm_t *cp, void *args)
 {
+    (void)args;
 
     /* Decrement configure counter */
     cp->restart_counter -= 1;
@@ -357,7 +362,7 @@ void scr(gnrc_ppp_fsm_t *cp, void *args)
     }
 
     /*Send configure request*/
-    send_configure_request(((gnrc_ppp_protocol_t *) cp)->pppdev, cp->prottype, ++cp->cr_sent_identifier, opts);
+    send_configure_request(((gnrc_ppp_protocol_t *) cp)->netif, cp->prottype, ++cp->cr_sent_identifier, opts);
     set_timeout(cp, cp->restart_timer);
 }
 
@@ -365,17 +370,17 @@ void sca(gnrc_ppp_fsm_t *cp, void *args)
 {
     gnrc_pktsnip_t *pkt = (gnrc_pktsnip_t *) args;
 
-    ppp_hdr_t *recv_ppp_hdr;
+    lcp_hdr_t *recv_hdr;
 
     gnrc_pktsnip_t *opts = NULL;
 
-    recv_ppp_hdr = _get_ppp_hdr(pkt);
+    recv_hdr = _get_hdr(pkt);
 
-    if (_pkt_has_payload(recv_ppp_hdr)) {
+    if (_pkt_has_payload(recv_hdr)) {
         opts = gnrc_pktbuf_add(NULL, pkt->data, pkt->size, GNRC_NETTYPE_UNDEF);
     }
 
-    send_configure_ack(((gnrc_ppp_protocol_t *) cp)->pppdev, cp->prottype, recv_ppp_hdr->id, opts);
+    send_configure_ack(((gnrc_ppp_protocol_t *) cp)->netif, cp->prottype, recv_hdr->id, opts);
 }
 
 void scn(gnrc_ppp_fsm_t *cp, void *args)
@@ -392,11 +397,11 @@ void scn(gnrc_ppp_fsm_t *cp, void *args)
     switch (type) {
         case GNRC_PPP_CONF_NAK:
             build_nak_pkt(cp, pkt, (uint8_t *)opts->data);
-            send_configure_nak(((gnrc_ppp_protocol_t *) cp)->pppdev, cp->prottype,((ppp_hdr_t *) pkt->next->data)->id, opts);
+            send_configure_nak(((gnrc_ppp_protocol_t *) cp)->netif, cp->prottype,((lcp_hdr_t *) pkt->next->data)->id, opts);
             break;
         case GNRC_PPP_CONF_REJ:
             build_rej_pkt(cp, pkt, (uint8_t *) opts->data);
-            send_configure_rej(((gnrc_ppp_protocol_t *) cp)->pppdev, cp->prottype,((ppp_hdr_t *) pkt->next->data)->id, opts);
+            send_configure_rej(((gnrc_ppp_protocol_t *) cp)->netif, cp->prottype,((lcp_hdr_t *) pkt->next->data)->id, opts);
             break;
         default:
             DEBUG("gnrc_ppp: shouldn't be here...\n");
@@ -406,8 +411,8 @@ void scn(gnrc_ppp_fsm_t *cp, void *args)
 
 void str(gnrc_ppp_fsm_t *cp, void *args)
 {
-
-    send_terminate_req(((gnrc_ppp_protocol_t *) cp)->pppdev, cp->prottype, cp->tr_sent_identifier++);
+    (void)args;
+    send_terminate_req(((gnrc_ppp_protocol_t *) cp)->netif, cp->prottype, cp->tr_sent_identifier++);
 }
 
 void sta(gnrc_ppp_fsm_t *cp, void *args)
@@ -415,12 +420,12 @@ void sta(gnrc_ppp_fsm_t *cp, void *args)
     gnrc_pktsnip_t *pkt = (gnrc_pktsnip_t *) args;
     gnrc_pktsnip_t *recv_pkt = NULL;
 
-    ppp_hdr_t *recv_ppp_hdr = _get_ppp_hdr(pkt);
+    lcp_hdr_t *recv_hdr = _get_hdr(pkt);
 
-    if (_pkt_has_payload(recv_ppp_hdr)) {
+    if (_pkt_has_payload(recv_hdr)) {
         recv_pkt = gnrc_pktbuf_add(NULL, pkt->data, pkt->size, GNRC_NETTYPE_UNDEF);
     }
-    send_terminate_ack(((gnrc_ppp_protocol_t *) cp)->pppdev, cp->prottype, recv_ppp_hdr->id, recv_pkt);
+    send_terminate_ack(((gnrc_ppp_protocol_t *) cp)->netif, cp->prottype, recv_hdr->id, recv_pkt);
 }
 void scj(gnrc_ppp_fsm_t *cp, void *args)
 {
@@ -428,13 +433,13 @@ void scj(gnrc_ppp_fsm_t *cp, void *args)
 
     gnrc_pktsnip_t *payload = gnrc_pktbuf_add(NULL, pkt->data, pkt->size, cp->prottype);
 
-    send_code_rej(((gnrc_ppp_protocol_t *) cp)->pppdev, cp->prottype, cp->cr_sent_identifier++, payload);
+    send_code_rej(((gnrc_ppp_protocol_t *) cp)->netif, cp->prottype, cp->cr_sent_identifier++, payload);
 }
 void ser(gnrc_ppp_fsm_t *cp, void *args)
 {
     gnrc_pktsnip_t *pkt = (gnrc_pktsnip_t *) args;
-    gnrc_pktsnip_t *ppp_hdr = gnrc_pktbuf_mark(pkt, sizeof(ppp_hdr_t), cp->prottype);
-    ppp_hdr_t *hdr = ppp_hdr->data;
+    gnrc_pktsnip_t *ppp_hdr = gnrc_pktbuf_mark(pkt, sizeof(lcp_hdr_t), cp->prottype);
+    lcp_hdr_t *hdr = ppp_hdr->data;
     uint8_t id = hdr->id;
 
     uint8_t code = hdr->code;
@@ -446,7 +451,7 @@ void ser(gnrc_ppp_fsm_t *cp, void *args)
 
     switch (code) {
         case GNRC_PPP_ECHO_REQ:
-            send_echo_reply(((gnrc_ppp_protocol_t *) cp)->pppdev, cp->prottype, id, data);
+            send_echo_reply(((gnrc_ppp_protocol_t *) cp)->netif, cp->prottype, id, data);
             break;
         case GNRC_PPP_ECHO_REP:
             break;
@@ -533,8 +538,10 @@ int trigger_fsm_event(gnrc_ppp_fsm_t *cp, int event, gnrc_pktsnip_t *pkt)
     return 0;
 }
 
-int fsm_init(gnrc_netdev2_t *ppp_dev, gnrc_ppp_fsm_t *cp)
+int fsm_init(gnrc_netif_t *netif, gnrc_ppp_fsm_t *cp)
 {
+    (void)netif;
+
     cp->state = PPP_S_INITIAL;
     cp->cr_sent_identifier = 0;
     return 0;
@@ -600,7 +607,7 @@ int handle_rcr(gnrc_ppp_fsm_t *cp, gnrc_pktsnip_t *pkt)
     return PPP_E_RCRp;
 }
 
-int handle_rca(gnrc_ppp_fsm_t *cp, ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
+int handle_rca(gnrc_ppp_fsm_t *cp, lcp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
 {
     uint8_t pkt_id = hdr->id;
     uint8_t pkt_length = byteorder_ntohs(hdr->length);
@@ -614,7 +621,7 @@ int handle_rca(gnrc_ppp_fsm_t *cp, ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
         opts = pkt->data;
     }
 
-    if (pkt_id != cp->cr_sent_identifier || (pkt && memcmp(cp->cr_sent_opts, opts, pkt_length - sizeof(ppp_hdr_t)))) {
+    if (pkt_id != cp->cr_sent_identifier || (pkt && memcmp(cp->cr_sent_opts, opts, pkt_length - sizeof(lcp_hdr_t)))) {
         return -EBADMSG;
     }
 
@@ -634,7 +641,7 @@ int handle_rca(gnrc_ppp_fsm_t *cp, ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
     return PPP_E_RCA;
 }
 
-int handle_rcn_nak(gnrc_ppp_fsm_t *cp, ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
+int handle_rcn_nak(gnrc_ppp_fsm_t *cp, lcp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
 {
     if (!pkt) {
         /* If the packet doesn't have options, it's considered as invalid. */
@@ -679,9 +686,9 @@ int handle_rcn_nak(gnrc_ppp_fsm_t *cp, ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
     return PPP_E_RCN;
 }
 
-int handle_rcn_rej(gnrc_ppp_fsm_t *cp, ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
+int handle_rcn_rej(gnrc_ppp_fsm_t *cp, lcp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
 {
-    if (!pkt || hdr->id != cp->cr_sent_identifier || ppp_conf_opts_valid(pkt, pkt->size) <= 0 || byteorder_ntohs(hdr->length) - sizeof(ppp_hdr_t) != cp->cr_sent_size) {
+    if (!pkt || hdr->id != cp->cr_sent_identifier || ppp_conf_opts_valid(pkt, pkt->size) <= 0 || byteorder_ntohs(hdr->length) - sizeof(lcp_hdr_t) != cp->cr_sent_size) {
         return -EBADMSG;
     }
 
@@ -707,13 +714,10 @@ int handle_rcn_rej(gnrc_ppp_fsm_t *cp, ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
     return PPP_E_RCN;
 }
 
-int handle_coderej(ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
+int handle_coderej(lcp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
 {
-    ppp_hdr_t *rej_hdr = (ppp_hdr_t *) pkt->data;
-
-    uint8_t code = rej_hdr->code;
-
-    if (code >= GNRC_PPP_CONF_REQ && code <= GNRC_PPP_TERM_ACK) {
+    (void)pkt;
+    if (hdr->code >= GNRC_PPP_CONF_REQ && hdr->code <= GNRC_PPP_TERM_ACK) {
         return PPP_E_RXJm;
     }
     else {
@@ -725,9 +729,9 @@ int handle_coderej(ppp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
 
 int handle_term_ack(gnrc_ppp_fsm_t *cp, gnrc_pktsnip_t *pkt)
 {
-    ppp_hdr_t *ppp_hdr = pkt->data;
+    lcp_hdr_t *hdr = pkt->data;
 
-    int id = ppp_hdr->id;
+    int id = hdr->id;
 
     if (id == cp->tr_sent_identifier) {
         return PPP_E_RTA;
@@ -740,7 +744,7 @@ static int handle_conf_pkt(gnrc_ppp_fsm_t *cp, int type, gnrc_pktsnip_t *pkt)
 {
     gnrc_pktsnip_t *ppp_hdr = gnrc_pktbuf_mark(pkt, sizeof(ppp_hdr_t), cp->prottype);
     gnrc_pktsnip_t *payload = pkt->size == 0 ? NULL : pkt;
-    ppp_hdr_t *hdr = (ppp_hdr_t *) ppp_hdr->data;
+    lcp_hdr_t *hdr = (lcp_hdr_t *) ppp_hdr->data;
 
     int event;
 
@@ -767,7 +771,7 @@ static int handle_conf_pkt(gnrc_ppp_fsm_t *cp, int type, gnrc_pktsnip_t *pkt)
 
 int fsm_event_from_pkt(gnrc_ppp_fsm_t *cp, gnrc_pktsnip_t *pkt)
 {
-    ppp_hdr_t *hdr = (ppp_hdr_t *) pkt->data;
+    lcp_hdr_t *hdr = (lcp_hdr_t *) pkt->data;
 
     int code = hdr->code;
     int supported = cp->supported_codes & (1 << (code - 1));

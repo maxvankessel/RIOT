@@ -20,8 +20,9 @@
 
 #include <errno.h>
 #include "assert.h"
+
+#include "../../../../include/net/gnrc/ppp_old/ppp.h"
 #include "net/gnrc/netdev2.h"
-#include "net/gnrc/ppp/ppp.h"
 #include "net/netdev2/ppp.h"
 #include "net/gnrc.h"
 #include "net/hdlc/hdr.h"
