@@ -28,6 +28,7 @@ extern "C" {
 #define GNRC_PPP_LCP_OPT_MRU (1)                 /**< code for MRU */
 #define GNRC_PPP_LCP_OPT_ACCM (2)                /**< code for ACCM */
 #define GNRC_PPP_LCP_OPT_AUTH (3)                /**< code for auth */
+#define GNRC_PPP_LCP_OPT_PFC  (7)                /**< code for auth */
 
 #define GNRC_PPP_LCP_MAX_MRU (2000)              /**< max MRU of ppp device */
 #define GNRC_PPP_LCP_DEFAULT_MRU (1500)          /**< default value of MRU */
@@ -44,6 +45,7 @@ typedef enum {
     LCP_MRU,    /**< Maximum Received Unit option */
     LCP_ACCM,   /**< Async Control Character Map option */
     LCP_AUTH,   /**< Authentication method option */
+    LCP_PFC,    /**< Protocol Field Compression */
     LCP_NUMOPTS
 } lcp_options_t;
 

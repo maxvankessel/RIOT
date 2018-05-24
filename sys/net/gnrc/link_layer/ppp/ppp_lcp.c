@@ -48,6 +48,8 @@ static gnrc_ppp_fsm_conf_t *lcp_get_conf_by_code(gnrc_ppp_fsm_t *cp, uint8_t cod
             return &cp->conf[LCP_ACCM];
         case GNRC_PPP_LCP_OPT_AUTH:
             return &cp->conf[LCP_AUTH];
+        case GNRC_PPP_LCP_OPT_PFC:
+            return &cp->conf[LCP_PFC];
         default:
             return NULL;
     }
@@ -166,6 +168,13 @@ void lcp_auth_set(gnrc_ppp_fsm_t *lcp, gnrc_ppp_option_t *opt, uint8_t peer)
     }
 }
 
+uint8_t lcp_pcomp_is_valid(gnrc_ppp_option_t *opt)
+{
+    (void)opt;
+    return true;
+}
+
+
 static void lcp_config_init(gnrc_ppp_fsm_t *lcp)
 {
     lcp->conf = LCP_NUMOPTS ? ((gnrc_ppp_lcp_t *) lcp)->lcp_opts : NULL;
@@ -194,10 +203,19 @@ static void lcp_config_init(gnrc_ppp_fsm_t *lcp)
     dev->lcp_opts[LCP_AUTH].default_value = byteorder_htonl(GNRC_PPP_LCP_DEFAULT_AUTH);
     dev->lcp_opts[LCP_AUTH].size = GNRC_PPP_OPT_SIZE_AUTH_PAP;
     dev->lcp_opts[LCP_AUTH].flags = 0;
-    dev->lcp_opts[LCP_AUTH].next = NULL;
+    dev->lcp_opts[LCP_AUTH].next = &dev->lcp_opts[LCP_PFC];
     dev->lcp_opts[LCP_AUTH].is_valid = &lcp_auth_is_valid;
     dev->lcp_opts[LCP_AUTH].build_nak_opts = &lcp_auth_build_nak_opts;
     dev->lcp_opts[LCP_AUTH].set = &lcp_auth_set;
+
+    dev->lcp_opts[LCP_PFC].type = GNRC_PPP_LCP_OPT_PFC;
+    dev->lcp_opts[LCP_PFC].default_value = byteorder_htonl(0);
+    dev->lcp_opts[LCP_PFC].size = 0;
+    dev->lcp_opts[LCP_PFC].flags = 0;
+    dev->lcp_opts[LCP_PFC].next = NULL;
+    dev->lcp_opts[LCP_PFC].is_valid = &lcp_pcomp_is_valid;
+    dev->lcp_opts[LCP_PFC].build_nak_opts = NULL;
+    dev->lcp_opts[LCP_PFC].set = NULL;
 }
 
 
