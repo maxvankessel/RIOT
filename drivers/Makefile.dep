@@ -272,6 +272,7 @@ ifneq (,$(filter pcd8544,$(USEMODULE)))
 endif
 
 ifneq (,$(filter pppos,$(USEMODULE)))
+  USEMODULE += at
   USEMODULE += xtimer
   USEMODULE += tsrb
   USEMODULE += hdlc
