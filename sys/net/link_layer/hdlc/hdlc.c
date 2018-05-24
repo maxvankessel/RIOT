@@ -157,7 +157,7 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
             return -EIO;
         }
 
-        DEBUG("%2x ", byte);
+        DEBUG("%02x ", byte);
 
         /* start or restart */
         if(byte == HDLC_FLAG_SEQUENCE) {
@@ -165,7 +165,7 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
                 /* complete, remove checksum */
                 res -= 2;
 
-                DEBUG("\n");
+                DEBUG("[IN]\n");
 
                 return res;
             }
@@ -235,6 +235,8 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
     uint16_t fcs = FCS16_INIT;
     uint8_t * ptr = dev->txmem;
 
+    DEBUG(MODULE"%02x ", HDLC_FLAG_SEQUENCE);
+
     ptr = _add(ptr, HDLC_FLAG_SEQUENCE, true, NULL);
 
     for(const iolist_t *iol = iolist; iol; iol = iol->iol_next) {
@@ -242,14 +244,21 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
 
         for(unsigned j = 0; j < iol->iol_len; j++, data++) {
             ptr = _add(ptr, *data, false, &fcs);
+
+            DEBUG("%02x ", *data);
         }
     }
 
     fcs ^= 0xffff;
     ptr = _add(ptr, (uint8_t) fcs & 0x00ff, false, NULL);
+    DEBUG("%02x ", (uint8_t)fcs & 0x00ff);
+
     ptr = _add(ptr, (uint8_t) (fcs >> 8) & 0x00ff, false, NULL);
+    DEBUG("%02x ", (uint8_t)(fcs >> 8));
 
     ptr = _add(ptr, HDLC_FLAG_SEQUENCE, true, NULL);
+
+    DEBUG("%02x [OUT]\n", HDLC_FLAG_SEQUENCE);
 
     iolist_t new_iolist = {
             .iol_next = NULL,
