@@ -18,6 +18,7 @@
 //#ifdef MODULE_NETDEV_PPP
 #include <errno.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "net/gnrc.h"
 #include "net/gnrc/netif/internal.h"
@@ -86,6 +87,10 @@ static void _gnrc_ppp_init(gnrc_netif_t *netif)
     pap_init(dev);
 
     ((netdev_ppp_t *)dev)->netif = netif;
+
+
+    trigger_fsm_event((gnrc_ppp_fsm_t *) &((netdev_ppp_t *)dev)->lcp, PPP_E_OPEN, NULL);
+    trigger_fsm_event((gnrc_ppp_fsm_t *) &((netdev_ppp_t *)dev)->ipcp, PPP_E_OPEN, NULL);
 }
 
 
@@ -112,12 +117,12 @@ static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         if(type == NETDEV_TYPE_PPPOS) {
             gnrc_pktsnip_t *hdr;
             netdev_ppp_t * ppp = (netdev_ppp_t *) get_lowest_netdev(dev);
-           hdlc_hdr_t hdlc_hdr = {
+            hdlc_hdr_t hdlc_hdr = {
                .address = 0xFF,
                .control.frame = 0x03,
-           };
+            };
 
-           if (pkt->type == GNRC_NETTYPE_NETIF) {
+            if (pkt->type == GNRC_NETTYPE_NETIF) {
                 /* we don't need the netif snip: remove it */
                 pkt = gnrc_pktbuf_remove_snip(pkt, pkt);
             }
@@ -272,6 +277,17 @@ static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
             }
         }
 
+        uint16_t prot = (uint16_t)(*(uint8_t*)(pkt->data));
+
+        if(prot & 1) {
+            /* protocol field compression */
+            gnrc_pktsnip_t * comp = gnrc_pktbuf_mark(pkt, 1, GNRC_NETTYPE_UNDEF);
+
+            gnrc_pktbuf_remove_snip(pkt, comp);
+
+            gnrc_pktbuf_add(pkt, &prot, 2, GNRC_NETTYPE_UNDEF);
+        }
+
         /* mark header */
         ppp_hdr = gnrc_pktbuf_mark(pkt, sizeof(ppp_hdr_t), GNRC_NETTYPE_PPP);
 
@@ -398,11 +414,10 @@ static void _gnrc_ppp_event_cb(netdev_t *dev, netdev_event_t event)
                 break;
 
             case NETDEV_EVENT_LAYER_UP:
+
+                send_ppp_event(&ppp->dcp.prot.msg, ppp_msg_set(PROT_DCP, PPP_LINKUP));
+
                 /* start negation */
-
-                trigger_fsm_event((gnrc_ppp_fsm_t *) &ppp->lcp, PPP_E_OPEN, NULL);
-                trigger_fsm_event((gnrc_ppp_fsm_t *) &ppp->ipcp, PPP_E_OPEN, NULL);
-
                 break;
 
             default:
@@ -419,7 +434,7 @@ void _dispatch_ppp_msg(gnrc_netif_t *netif, msg_t *msg)
         gnrc_ppp_target_t target = ppp_msg_get_target(event);
         gnrc_ppp_event_t e = ppp_msg_get_event(event);
 
-        netdev_ppp_t *pppdev = (netdev_ppp_t*)netif->dev;
+        netdev_ppp_t *pppdev = (netdev_ppp_t*)get_lowest_netdev(netif->dev);
 
         gnrc_ppp_protocol_t *target_prot;
 
@@ -454,10 +469,12 @@ gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code, uint8_t id, gnr
     hdr.code = code;
     hdr.id = id;
 
-    int payload_length = payload ? payload->size : 0;
-    hdr.length = byteorder_htons(payload_length + sizeof(ppp_hdr_t));
+    //[7e ff 03 [c0 21 [04 01 00 06 [08 02]]] 6f e7 7e]
 
-    gnrc_pktsnip_t *ppp_pkt = gnrc_pktbuf_add(payload, (void *) &hdr, sizeof(ppp_hdr_t), pkt_type);
+    int payload_length = payload ? payload->size : 0;
+    hdr.length = byteorder_htons(payload_length + sizeof(lcp_hdr_t));
+
+    gnrc_pktsnip_t *ppp_pkt = gnrc_pktbuf_add(payload, (void *) &hdr, sizeof(lcp_hdr_t), pkt_type);
     return ppp_pkt;
 }
 
