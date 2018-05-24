@@ -9,6 +9,7 @@ BOARD_BLACKLIST += mips-malta
 USEMODULE += gnrc
 USEMODULE += gnrc_pktdump
 USEMODULE += gnrc_txtsnd
+USEMODULE += gnrc_ppp
 USEMODULE += pppos
 USEMODULE += shell
 USEMODULE += shell_commands
