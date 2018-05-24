@@ -29,7 +29,7 @@
 #include "net/hdlc/fcs.h"
 #include "net/hdlc.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 #define MODULE  "hdlc: "
@@ -41,16 +41,12 @@ static int _init(netdev_t *netdev)
 {
     hdlc_t *dev = (hdlc_t *)netdev;
 
-    dev->station_id = 0xFF;
-    dev->control = 0;
-    dev->last_xmit = 0;
-
     if(netdev->lower != NULL) {
         netdev->lower->event_callback =  netdev_event_cb_pass;
     }
 
     /* initialize buffers */
-   tsrb_init(&dev->inbuf, (char*)dev->rxmem, sizeof(HDLC_BUFSIZE));
+   tsrb_init(&dev->inbuf, (char*)dev->rxmem, HDLC_BUFSIZE);
 
    return netdev_init_pass(netdev);
 }
@@ -75,10 +71,10 @@ static void _drop_input(hdlc_t *dev)
     }
 }
 
-static void _rx_cb(void *arg, uint8_t byte)
+static int _rx_cb(void *arg, uint8_t byte)
 {
+    int res = 0;
     hdlc_t *dev = arg;
-    netdev_t *netdev = (netdev_t *)&dev->netdev;
 
     /* special character */
     if ((byte == HDLC_CONTROL_ESCAPE) || (byte == HDLC_FLAG_SEQUENCE)) {
@@ -99,9 +95,7 @@ static void _rx_cb(void *arg, uint8_t byte)
             }
             else {
                 /* complete package */
-                if (netdev->event_callback != NULL) {
-                    netdev->event_callback((netdev_t *)dev, NETDEV_EVENT_RX_COMPLETE);
-                }
+                res = (int)tsrb_avail(&dev->inbuf);
             }
             /* new packet preparation */
             dev->fcs = FCS16_INIT;
@@ -138,17 +132,24 @@ static void _rx_cb(void *arg, uint8_t byte)
 
         dev->fcs = fcs16_bit(dev->fcs, byte);
     }
+
+    return res;
 }
 
 static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
 {
     int res = 0;
     hdlc_t *dev = (hdlc_t *)netdev;
+    size_t length = len;
 
     (void)info;
     uint8_t *ptr = buf;
 
-    for(; len > 0; len--) {
+    if(len > 0) {
+        DEBUG(MODULE);
+    }
+
+    for(; length > 0; length--) {
         int byte;
 
         if ((byte = _tsrb_peek_one(&dev->inbuf)) < 0) {
@@ -156,11 +157,16 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
             return -EIO;
         }
 
+        DEBUG("%2x ", byte);
+
         /* start or restart */
         if(byte == HDLC_FLAG_SEQUENCE) {
             if(res >= 2) {
                 /* complete, remove checksum */
                 res -= 2;
+
+                DEBUG("\n");
+
                 return res;
             }
         }
@@ -194,7 +200,11 @@ static void _isr(netdev_t *netdev)
         uint8_t byte;
 
         if(netdev_recv_pass(netdev, &byte, 1, NULL) > 0) {
-            _rx_cb(dev, byte);
+            if(_rx_cb(dev, byte) > 0) {
+                if (netdev->event_callback != NULL) {
+                    netdev->event_callback((netdev_t *)dev, NETDEV_EVENT_RX_COMPLETE);
+                }
+            }
         }
     }
 }
@@ -225,11 +235,7 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
     uint16_t fcs = FCS16_INIT;
     uint8_t * ptr = dev->txmem;
 
-    if((xtimer_now_usec() - dev->last_xmit) >= HDLC_MAX_IDLE_TIME_MS) {
-        ptr = _add(ptr, HDLC_FLAG_SEQUENCE, true, NULL);
-        ptr = _add(ptr, dev->station_id, false, &fcs);
-        ptr = _add(ptr, dev->control, false, &fcs);
-    }
+    ptr = _add(ptr, HDLC_FLAG_SEQUENCE, true, NULL);
 
     for(const iolist_t *iol = iolist; iol; iol = iol->iol_next) {
         uint8_t * data = iol->iol_base;
@@ -245,8 +251,6 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
 
     ptr = _add(ptr, HDLC_FLAG_SEQUENCE, true, NULL);
 
-    dev->last_xmit = xtimer_now_usec();
-
     iolist_t new_iolist = {
             .iol_next = NULL,
             .iol_base = dev->txmem,
@@ -256,68 +260,13 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
     return netdev_send_pass(netdev, &new_iolist);
 }
 
-static int _get(netdev_t *netdev, netopt_t opt, void *value, size_t max_len)
-{
-    int res = -ENODEV;
-    hdlc_t *dev = (hdlc_t *)netdev;
-
-    if (dev) {
-        switch (opt) {
-            case NETOPT_HDLC_CONTROL:
-                *((uint8_t *)value) = dev->control;
-                res = 1;
-                break;
-            case NETOPT_HDLC_STATION_ID:
-                *((uint8_t *)value) = dev->station_id;
-                res = 1;
-                break;
-            default:
-                res = -ENOTSUP;
-        }
-
-        if (res < 0) {
-            res = netdev_get_pass(netdev, opt, value, max_len);
-        }
-    }
-
-    return res;
-}
-
-static int _set(netdev_t *netdev, netopt_t opt, const void *value,
-        size_t value_len)
-{
-    hdlc_t *dev = (hdlc_t *)netdev;
-    int res = -ENODEV;
-
-    if (dev != NULL) {
-        switch (opt) {
-            case NETOPT_HDLC_CONTROL:
-                dev->control = *((uint8_t *)value);
-                res = sizeof(dev->control);
-                break;
-            case NETOPT_HDLC_STATION_ID:
-                dev->station_id = *((uint8_t *)value);
-                res = sizeof(dev->station_id);
-                break;
-            default:
-                res = -ENOTSUP;
-        }
-
-        if (res < 0) {
-            res = netdev_set_pass(netdev, opt, value, value_len);
-        }
-
-    }
-    return res;
-}
-
 static const netdev_driver_t hdlc_driver = {
     .send = _send,
     .recv = _recv,
     .init = _init,
     .isr = _isr,
-    .get = _get,
-    .set = _set,
+    .get = netdev_get_pass,
+    .set = netdev_set_pass,
 };
 
 

@@ -92,11 +92,6 @@ typedef struct {
     uint16_t fcs;                   /**< checksum variable */
     uint8_t esc;                    /**< escaping next character */
     uint8_t state;                  /**< parser state */
-
-    uint8_t station_id;             /**< station id of this device */
-    uint8_t control;                /**< control -> command/response  */
-
-    uint32_t last_xmit;             /**< last transmit time */
 } hdlc_t;
 
 void hdlc_setup(hdlc_t *dev);
