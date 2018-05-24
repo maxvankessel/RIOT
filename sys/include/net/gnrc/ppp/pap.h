@@ -51,7 +51,7 @@ typedef struct gnrc_ppp_pap {
  *
  * @return 0
  */
-int pap_init(gnrc_netif_t *netif);
+int pap_init(netdev_t *dev);
 
 void pap_recv(gnrc_ppp_protocol_t *protocol, gnrc_pktsnip_t *pkt);
 

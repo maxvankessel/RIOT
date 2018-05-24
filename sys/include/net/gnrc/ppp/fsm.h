@@ -253,12 +253,11 @@ struct gnrc_ppp_fsm_conf {
 /**
  * @brief init the Option Negotiation Automaton FSM
  *
- * @param[in] ppp_dev pointer to GNRC pppdev object
- * param[in] cp Pointer to the Option Negotiation Automaton FSM
+ * @param[in] cp Pointer to the Option Negotiation Automaton FSM
  *
  * @return 0 for now.
  */
-int fsm_init(gnrc_netif_t *netif, gnrc_ppp_fsm_t *cp);
+int fsm_init(gnrc_ppp_fsm_t *cp);
 /**
  * @brief triggers an event in the FSM
  *

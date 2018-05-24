@@ -30,7 +30,7 @@
 
 #include "byteorder.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 #if ENABLE_DEBUG
@@ -47,6 +47,24 @@ static void _gnrc_ppp_init(gnrc_netif_t *netif);
 static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt);
 static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif);
 
+static inline netdev_t * get_lowest_netdev(netdev_t * n)
+{
+#ifdef MODULE_NETDEV_LAYER
+    while(n->lower != NULL) {
+        n = n->lower;
+    }
+#endif
+    return n;
+}
+
+static inline gnrc_netif_t * get_netif(netdev_t *n)
+{
+    while(n->context != NULL) {
+        n = n->context;
+    }
+    return (gnrc_netif_t *)n;
+}
+
 static const gnrc_netif_ops_t ppp_ops = {
     .init = _gnrc_ppp_init,
     .send = _send,
@@ -58,18 +76,16 @@ static const gnrc_netif_ops_t ppp_ops = {
 
 static void _gnrc_ppp_init(gnrc_netif_t *netif)
 {
-    netdev_ppp_t *ppp = (netdev_ppp_t *)netif->dev;
-
     netif->dev->event_callback = _gnrc_ppp_event_cb;
+    netdev_t *dev = get_lowest_netdev(netif->dev);
 
-    dcp_init(netif);
-    lcp_init(netif);
-    ipcp_init(netif);
-    ppp_ipv4_init(netif);
-    pap_init(netif);
+    dcp_init(dev);
+    lcp_init(dev);
+    ipcp_init(dev);
+    ppp_ipv4_init(dev);
+    pap_init(dev);
 
-    trigger_fsm_event((gnrc_ppp_fsm_t *) &ppp->lcp, PPP_E_OPEN, NULL);
-    trigger_fsm_event((gnrc_ppp_fsm_t *) &ppp->ipcp, PPP_E_OPEN, NULL);
+    ((netdev_ppp_t *)dev)->netif = netif;
 }
 
 
@@ -95,6 +111,7 @@ static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         /* add HDLC framing, see RFC 1662 */
         if(type == NETDEV_TYPE_PPPOS) {
             gnrc_pktsnip_t *hdr;
+            netdev_ppp_t * ppp = (netdev_ppp_t *) get_lowest_netdev(dev);
            hdlc_hdr_t hdlc_hdr = {
                .address = 0xFF,
                .control.frame = 0x03,
@@ -113,7 +130,7 @@ static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
                 goto safe_out;
             }
 
-            if(gnrc_pkt_len(hdr) > ((netdev_ppp_t *)dev)->lcp.peer_mru) {
+            if(gnrc_pkt_len(hdr) > ppp->lcp.peer_mru) {
                 DEBUG(MODULE"sending exceeds peer MRU. Dropping packet.\n");
                 res = -EBADMSG;
                 goto safe_out;
@@ -202,6 +219,7 @@ static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
         uint16_t type = GNRC_NETTYPE_UNDEF;
         gnrc_pktsnip_t *ppp_hdr;
         ppp_hdr_t *hdr;
+        netdev_ppp_t * ppp = (netdev_ppp_t *) get_lowest_netdev(dev);
 
         dev->driver->get(dev, NETOPT_DEVICE_TYPE, &type, sizeof(type));
 
@@ -231,7 +249,7 @@ static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
         }
 
         /* TODO check packet length against maximum receive unit (MRU)*/
-        if(gnrc_pkt_len(pkt) > ((netdev_ppp_t *)dev)->lcp.mru) {
+        if(gnrc_pkt_len(pkt) > ppp->lcp.mru) {
             DEBUG(MODULE"receiving exceeds MRU. Dropping packet.\n");
             goto safe_out;
         }
@@ -264,9 +282,7 @@ static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
 
         hdr = (ppp_hdr_t *)ppp_hdr->data;
 
-        DEBUG(MODULE"packet received - protocol: x%04X\n", byteorder_ntohs(hdr->protocol));
-
-        pkt = ppp_hdr;
+        DEBUG(MODULE"packet received - protocol: %04X\n", byteorder_ntohs(hdr->protocol));
     }
 
 out:
@@ -304,19 +320,33 @@ gnrc_ppp_target_t _get_target_from_protocol(uint16_t protocol)
 
 static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 {
-    netdev_ppp_t *dev = (netdev_ppp_t *)netif->dev;
-    ppp_hdr_t *hdr = (ppp_hdr_t *)pkt->data;
+    netdev_ppp_t *dev = (netdev_ppp_t *)get_lowest_netdev(netif->dev);
+    ppp_hdr_t *hdr = (ppp_hdr_t *)pkt->next->data;
 
     gnrc_pktsnip_t *ret_pkt = NULL;
 
     gnrc_ppp_target_t target = _get_target_from_protocol(byteorder_ntohs(hdr->protocol));
 
     switch (target) {
-        case PROT_LCP:
-            fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->lcp, PPP_RECV, pkt);
+        case PROT_LCP: {
+            /* mark header */
+            gnrc_pktsnip_t *lcp_hdr = gnrc_pktbuf_mark(pkt, sizeof(lcp_hdr_t), GNRC_NETTYPE_LCP);
+
+            if(lcp_hdr) {
+                fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->lcp, PPP_RECV, pkt);
+            }
             break;
-        case PROT_IPCP:
-            fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->ipcp, PPP_RECV, pkt);
+        }
+        case PROT_IPCP: {
+            /* mark header */
+            gnrc_pktsnip_t *ipcp_hdr = gnrc_pktbuf_mark(pkt, sizeof(lcp_hdr_t), GNRC_NETTYPE_IPCP);
+
+            if(ipcp_hdr) {
+                fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->ipcp, PPP_RECV, pkt);
+            }
+            break;
+        }
+
             break;
         case PROT_IPV4:
             ret_pkt = ppp_ipv4_recv(netif, pkt);
@@ -325,7 +355,7 @@ static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             pap_recv((gnrc_ppp_protocol_t*)&dev->pap, pkt);
             break;
         default:
-            DEBUG(MODULE"Unrecognized target\n");
+            DEBUG(MODULE"unrecognized target: %u\n", byteorder_ntohs(hdr->protocol));
     }
 
     if(ret_pkt) {
@@ -338,6 +368,7 @@ static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 static void _gnrc_ppp_event_cb(netdev_t *dev, netdev_event_t event)
 {
     gnrc_netif_t *netif = (gnrc_netif_t *)dev->context;
+    netdev_ppp_t *ppp = (netdev_ppp_t *)get_lowest_netdev(netif->dev);
 
     if(event == NETDEV_EVENT_ISR) {
         msg_t msg;
@@ -346,7 +377,7 @@ static void _gnrc_ppp_event_cb(netdev_t *dev, netdev_event_t event)
         msg.content.ptr = (void *)netif;
 
         if(msg_send(&msg, netif->pid) <= 0) {
-            DEBUG("gnrc_netdev: possibly lost interrupt.\n");
+            //DEBUG("gnrc_netdev: possibly lost interrupt.\n");
         }
     }
     else {
@@ -366,9 +397,11 @@ static void _gnrc_ppp_event_cb(netdev_t *dev, netdev_event_t event)
             case NETDEV_EVENT_TX_COMPLETE:
                 break;
 
-            case NETDEV_EVENT_LINK_UP:
+            case NETDEV_EVENT_LAYER_UP:
                 /* start negation */
 
+                trigger_fsm_event((gnrc_ppp_fsm_t *) &ppp->lcp, PPP_E_OPEN, NULL);
+                trigger_fsm_event((gnrc_ppp_fsm_t *) &ppp->ipcp, PPP_E_OPEN, NULL);
 
                 break;
 
@@ -427,6 +460,12 @@ gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code, uint8_t id, gnr
     gnrc_pktsnip_t *ppp_pkt = gnrc_pktbuf_add(payload, (void *) &hdr, sizeof(ppp_hdr_t), pkt_type);
     return ppp_pkt;
 }
+
+void send_packet(netdev_ppp_t *dev, gnrc_pktsnip_t *payload)
+{
+        dev->netif->ops->send(dev->netif, payload);
+}
+
 
 //#else   /* MODULE_NETDEV_PPP */
 //typedef int dont_be_pedantic;

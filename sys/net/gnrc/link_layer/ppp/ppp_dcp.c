@@ -31,9 +31,8 @@ int dcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
     msg_t *timer_msg = &((gnrc_ppp_dcp_t *) protocol)->timer_msg;
     xtimer_t *xtimer = &((gnrc_ppp_dcp_t *) protocol)->xtimer;
     gnrc_ppp_dcp_t *dcp = (gnrc_ppp_dcp_t *) protocol;
-    netdev_t *pppdev = (netdev_t*) protocol->netif->dev;
+    netdev_t *pppdev = (netdev_t*) protocol->dev;
 
-    netopt_enable_t en;
     switch (ppp_event) {
         case PPP_UL_STARTED:
             break;
@@ -42,8 +41,7 @@ int dcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
             /*Remove timer*/
             xtimer_remove(xtimer);
             dcp->dead_counter = GNRC_PPP_DCP_DEAD_COUNTER;
-            en = NETOPT_DISABLE;
-            pppdev->driver->set(pppdev, NETOPT_DIAL_UP, &en, sizeof(netopt_enable_t));
+            pppdev->driver->set(pppdev, NETOPT_DIAL_UP, NULL, 0);
             break;
 
         case PPP_LINKUP:
@@ -80,10 +78,10 @@ int dcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
     }
     return 0;
 }
-int dcp_init(gnrc_netif_t *netif)
+int dcp_init(netdev_t *dev)
 {
-    netdev_ppp_t *pppdev = (netdev_ppp_t*) netif->dev;
-    ppp_protocol_init((gnrc_ppp_protocol_t*) &pppdev->dcp, netif, dcp_handler, PROT_DCP);
+    netdev_ppp_t *pppdev = (netdev_ppp_t*)dev;
+    ppp_protocol_init((gnrc_ppp_protocol_t*) &pppdev->dcp, dev, dcp_handler, PROT_DCP);
     pppdev->dcp.dead_counter = GNRC_PPP_DCP_DEAD_COUNTER;
     return 0;
 }

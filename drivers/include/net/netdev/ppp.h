@@ -63,6 +63,7 @@ typedef struct netdev_ppp {
     gnrc_ppp_ipcp_t ipcp;                  /**< IPv4 Network Control Protocol */
     gnrc_ppp_ipv4_t ipv4;                  /**< Handler for IPv4 packets */
 
+    gnrc_netif_t * netif;
 } netdev_ppp_t;
 
 /**

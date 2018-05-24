@@ -72,7 +72,7 @@ struct gnrc_ppp_fsm_t;
  *
  * @return 0
  */
-int ipcp_init(gnrc_netif_t *netif);
+int ipcp_init(netdev_t *dev);
 
 
 /**
@@ -84,7 +84,7 @@ int ipcp_init(gnrc_netif_t *netif);
  *
  * @return 0
  */
-int ppp_ipv4_init(gnrc_netif_t *netif);
+int ppp_ipv4_init(netdev_t *dev);
 
 /**
  * @brief send an encapsulated pkt

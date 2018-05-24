@@ -112,6 +112,7 @@ static inline gnrc_ppp_option_t *ppp_opt_get_next(gnrc_ppp_option_t *curr_opt, g
     gnrc_ppp_option_t *ret = NULL;
 
     ret = (gnrc_ppp_option_t *)(((uint8_t *) curr_opt) + ppp_opt_get_length(curr_opt));
+
     if (((int)ret - (int)head) >= opt_size) {
         return NULL;
     }

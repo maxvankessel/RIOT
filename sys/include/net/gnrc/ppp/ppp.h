@@ -111,7 +111,10 @@ gnrc_pktsnip_t *pkt_build(gnrc_nettype_t pkt_type, uint8_t code, uint8_t id, gnr
  *
  * @return 0
  */
-int dcp_init(gnrc_netif_t *netif);
+int dcp_init(netdev_t *dev);
+
+
+void send_packet(netdev_ppp_t *dev, gnrc_pktsnip_t *payload);
 
 /**
  * @brief send a configure request packet
@@ -121,7 +124,7 @@ int dcp_init(gnrc_netif_t *netif);
  * @param id id of packet
  * @param payload payload of configure request packet
  */
-void send_configure_request(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *payload);
+void send_configure_request(netdev_t *dev, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *payload);
 
 /**
  * @brief send a configure ack packet
@@ -131,7 +134,7 @@ void send_configure_request(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_
  * @param id id of packet
  * @param opts ACK'd options
  */
-void send_configure_ack(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *opts);
+void send_configure_ack(netdev_t *dev, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *opts);
 
 /**
  * @brief send a configure nak packet
@@ -141,7 +144,7 @@ void send_configure_ack(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id
  * @param id id of packet
  * @param opts NAK'd options
  */
-void send_configure_nak(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *opts);
+void send_configure_nak(netdev_t *dev, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *opts);
 
 /**
  * @brief send configure reject
@@ -151,7 +154,7 @@ void send_configure_nak(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id
  * @param id id of packet
  * @param opts rejected options
  */
-void send_configure_rej(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *opts);
+void send_configure_rej(netdev_t *dev, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *opts);
 
 /**
  * @brief
@@ -160,7 +163,7 @@ void send_configure_rej(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id
  * @param protocol nettype of packet
  * @param id id of packet
  */
-void send_terminate_req(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id);
+void send_terminate_req(netdev_t *dev, gnrc_nettype_t protocol, uint8_t id);
 
 /**
  * @brief send terminate ack
@@ -170,7 +173,7 @@ void send_terminate_req(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id
  * @param id id of packet
  * @param response response of terminate request
  */
-void send_terminate_ack(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *response);
+void send_terminate_ack(netdev_t *dev, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *response);
 
 /**
  * @brief send code reject packet
@@ -180,7 +183,7 @@ void send_terminate_ack(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id
  * @param id id of packet
  * @param rejected rejected packet including ppp header
  */
-void send_code_rej(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *rejected);
+void send_code_rej(netdev_t *dev, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *rejected);
 
 /**
  * @brief send echo reply
@@ -190,7 +193,7 @@ void send_code_rej(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, gnr
  * @param id id of packet
  * @param data data of the echo reply
  */
-void send_echo_reply(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *data);
+void send_echo_reply(netdev_t *dev, gnrc_nettype_t protocol, uint8_t id, gnrc_pktsnip_t *data);
 
 /**
  * @brief send protocol reject packet
@@ -200,7 +203,7 @@ void send_echo_reply(gnrc_netif_t *netif, gnrc_nettype_t protocol, uint8_t id, g
  * @param id id of packet
  * @param pkt rejected packet
  */
-void send_protocol_reject(gnrc_netif_t *netif, uint8_t id, gnrc_pktsnip_t *pkt);
+void send_protocol_reject(netdev_t *dev, uint8_t id, gnrc_pktsnip_t *pkt);
 
 /**
  * @brief send PAP auth request
@@ -210,7 +213,7 @@ void send_protocol_reject(gnrc_netif_t *netif, uint8_t id, gnrc_pktsnip_t *pkt);
  * @param id id of packet
  * @param credentials credentials of the PAP request
  */
-void send_pap_request(gnrc_netif_t *netif, uint8_t id, gnrc_pktsnip_t *credentials);
+void send_pap_request(netdev_t *dev, uint8_t id, gnrc_pktsnip_t *credentials);
 
 #ifdef __cplusplus
 }

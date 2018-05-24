@@ -74,7 +74,7 @@ struct gnrc_ppp_protocol {
     int (*handler)(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args);
     uint8_t id;                     /**< unique id of this protocol */
     msg_t msg;                      /**< msg structure for sending messages between protocols */
-    gnrc_netif_t *netif;   /**< pointer to GNRC pppdev interface */
+    netdev_t *dev;   /**< pointer to GNRC pppdev interface */
     gnrc_ppp_protocol_state_t state;     /**< state of current protocol */
     gnrc_ppp_target_t upper_layer;       /**< target of the upper layer of this protocol */
     gnrc_ppp_target_t lower_layer;       /**< target of the lower layer of this protocol */
@@ -125,11 +125,11 @@ static inline gnrc_ppp_event_t ppp_msg_get_event(gnrc_ppp_msg_t ppp_msg)
  * @param handler pointer to handler callback
  * @param id unique id of this protocol
  */
-static inline void ppp_protocol_init(gnrc_ppp_protocol_t *protocol, gnrc_netif_t *netif, int (*handler)(gnrc_ppp_protocol_t *, uint8_t, void *), uint8_t id)
+static inline void ppp_protocol_init(gnrc_ppp_protocol_t *protocol, netdev_t *dev, int (*handler)(gnrc_ppp_protocol_t *, uint8_t, void *), uint8_t id)
 {
     protocol->handler = handler;
     protocol->id = id;
-    protocol->netif = netif;
+    protocol->dev = dev;
     protocol->state = PROTOCOL_DOWN;
 }
 

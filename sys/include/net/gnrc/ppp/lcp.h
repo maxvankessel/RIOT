@@ -54,13 +54,13 @@ typedef enum {
  */
 typedef struct gnrc_ppp_lcp {
     gnrc_ppp_fsm_t fsm;                      /**< base fsm class */
-    gnrc_ppp_fsm_conf_t lcp_opts[LCP_NUMOPTS];   /**< configuration options for LCP */
     uint8_t pr_id;                      /** last protocol reject id */
     uint16_t peer_mru;                  /**< MRU of peer */
     uint16_t mru;                       /**< MRU of ppp device */
     uint8_t local_auth;                 /**< local authentication method */
     uint8_t remote_auth;                /**< peer authentication method */
     uint8_t monitor_id;                 /**< last monitor packet id*/
+    gnrc_ppp_fsm_conf_t lcp_opts[LCP_NUMOPTS];   /**< configuration options for LCP */
 } gnrc_ppp_lcp_t;
 
 struct gnrc_ppp_fsm_t;
@@ -73,7 +73,7 @@ struct gnrc_ppp_fsm_t;
  *
  * @return 0
  */
-int lcp_init(gnrc_netif_t *netif);
+int lcp_init(netdev_t *dev);
 gnrc_ppp_protocol_t *lcp_get_static_pointer(void);
 
 #ifdef __cplusplus

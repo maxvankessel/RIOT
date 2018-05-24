@@ -102,12 +102,12 @@ static void ipcp_config_init(gnrc_ppp_fsm_t *ipcp)
     ipcp->conf[IPCP_IPADDRESS].set = &ipcp_ipaddress_set;
 }
 
-int ipcp_init(gnrc_netif_t *netif)
+int ipcp_init(netdev_t *dev)
 {
-    netdev_ppp_t *pppdev = (netdev_ppp_t*) netif->dev;
+    netdev_ppp_t *pppdev = (netdev_ppp_t*) dev;
 	gnrc_ppp_protocol_t *prot_ipcp = (gnrc_ppp_protocol_t*) &pppdev->ipcp;
-    ppp_protocol_init(prot_ipcp, netif, fsm_handle_ppp_msg, PROT_IPCP);
-    fsm_init(netif, (gnrc_ppp_fsm_t *) prot_ipcp);
+    ppp_protocol_init(prot_ipcp, dev, fsm_handle_ppp_msg, PROT_IPCP);
+    fsm_init((gnrc_ppp_fsm_t *) prot_ipcp);
     ipcp_config_init((gnrc_ppp_fsm_t *) prot_ipcp);
 
     gnrc_ppp_ipcp_t *ipcp = (gnrc_ppp_ipcp_t *) prot_ipcp;
@@ -160,7 +160,7 @@ gnrc_pktsnip_t *gen_ip_pkt(gnrc_ppp_ipv4_t *ipv4, gnrc_pktsnip_t *payload, uint8
     ipv4_hdr_t *hdr = pkt->data;
 
     ipv4_addr_t dst = ipv4->tunnel_addr;
-    netdev_t *gnrc_pppdev = ((gnrc_ppp_protocol_t *) ipv4)->netif->dev;
+    netdev_t *gnrc_pppdev = ((gnrc_ppp_protocol_t *) ipv4)->dev;
     netdev_ppp_t *pppdev = (netdev_ppp_t*) gnrc_pppdev;
     gnrc_ppp_ipcp_t *ipcp = (gnrc_ppp_ipcp_t *) (&pppdev->ipcp);
     ipv4_addr_t src = ipcp->ip;
@@ -190,7 +190,7 @@ gnrc_pktsnip_t *_build_udp(gnrc_ppp_ipv4_t *ipv4, gnrc_pktsnip_t *pkt)
     gnrc_pktsnip_t *udp = gnrc_pktbuf_add(pkt, NULL, sizeof(udp_hdr_t), GNRC_NETTYPE_UNDEF);
 
     ipv4_addr_t dst = ipv4->tunnel_addr;
-    netdev_t *gnrc_pppdev = ((gnrc_ppp_protocol_t *) ipv4)->netif->dev;
+    netdev_t *gnrc_pppdev = ((gnrc_ppp_protocol_t *) ipv4)->dev;
     netdev_ppp_t *pppdev = (netdev_ppp_t*) gnrc_pppdev;
     gnrc_ppp_ipcp_t *ipcp = (gnrc_ppp_ipcp_t *) (&pppdev->ipcp);
     ipv4_addr_t src = ipcp->ip;
@@ -208,7 +208,7 @@ gnrc_pktsnip_t *_build_udp(gnrc_ppp_ipv4_t *ipv4, gnrc_pktsnip_t *pkt)
 
 int handle_ipv4(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
 {
-    netdev_ppp_t *pppdev = (netdev_ppp_t*) protocol->netif->dev;
+    netdev_ppp_t *pppdev = (netdev_ppp_t*) protocol->dev;
     gnrc_ppp_ipcp_t *ipcp = (gnrc_ppp_ipcp_t *) &pppdev->ipcp;
 
     (void) ipcp;
@@ -234,12 +234,12 @@ int handle_ipv4(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
 }
 
 
-int ppp_ipv4_init(gnrc_netif_t *netif)
+int ppp_ipv4_init(netdev_t *dev)
 {
-    netdev_ppp_t *pppdev = (netdev_ppp_t*) netif->dev;
+    netdev_ppp_t *pppdev = (netdev_ppp_t*) dev;
     gnrc_ppp_ipv4_t *ipv4 = (gnrc_ppp_ipv4_t *) &pppdev->ipv4;
 
-    ppp_protocol_init((gnrc_ppp_protocol_t*) ipv4, netif, handle_ipv4, PROT_IPV4);
+    ppp_protocol_init((gnrc_ppp_protocol_t*) ipv4, dev, handle_ipv4, PROT_IPV4);
     ipv4->tunnel_addr.u32 = byteorder_htonl(DEFAULT_TUNNEL_ADDRESS);
     ipv4->tunnel_port = DEFAULT_TUNNEL_PORT;
     return 0;

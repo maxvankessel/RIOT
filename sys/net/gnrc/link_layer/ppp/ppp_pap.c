@@ -63,7 +63,7 @@ int pap_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
     gnrc_pktsnip_t *pkt;
     xtimer_t *xtimer = &pap->xtimer;
     msg_t *timer_msg = &pap->timer_msg;
-    netdev_ppp_t *pppdev = (netdev_ppp_t *)protocol->netif->dev;
+    netdev_ppp_t *pppdev = (netdev_ppp_t *)protocol->dev;
     gnrc_ppp_lcp_t *lcp = (gnrc_ppp_lcp_t *) &pppdev->lcp;
     uint8_t local_auth = lcp->local_auth;
 
@@ -72,7 +72,7 @@ int pap_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
             if (local_auth == GNRC_PPP_AUTH_PAP) {
                 pkt = _pap_payload(pap);
                 protocol->state = PROTOCOL_STARTING;
-                send_pap_request(protocol->netif, ++pap->id, pkt);
+                send_pap_request(protocol->dev, ++pap->id, pkt);
                 send_ppp_event_xtimer(timer_msg, xtimer, ppp_msg_set(PROT_AUTH, PPP_TIMEOUT), PAP_TIMEOUT);
             }
             else {
@@ -86,7 +86,7 @@ int pap_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
             break;
         case PPP_TIMEOUT:
             pkt = _pap_payload(pap);
-            send_pap_request(protocol->netif, ++pap->id, pkt);
+            send_pap_request(protocol->dev, ++pap->id, pkt);
             send_ppp_event_xtimer(timer_msg, xtimer, ppp_msg_set(PROT_AUTH, PPP_TIMEOUT), PAP_TIMEOUT);
             break;
         default:
@@ -95,14 +95,14 @@ int pap_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
     return 0;
 }
 
-int pap_init(gnrc_netif_t *netif)
+int pap_init(netdev_t *dev)
 {
-    netdev_ppp_t *pppdev = (netdev_ppp_t*) netif->dev;
+    netdev_ppp_t *pppdev = (netdev_ppp_t*) dev;
     gnrc_ppp_pap_t *pap = (gnrc_ppp_pap_t *) &pppdev->pap;
 
     pap->user_size = DEFAULT_APN_USER_SIZE;
     pap->pass_size = DEFAULT_APN_PASS_SIZE;
-    ppp_protocol_init((gnrc_ppp_protocol_t*) pap, netif, pap_handler, PROT_AUTH);
+    ppp_protocol_init((gnrc_ppp_protocol_t*) pap, dev, pap_handler, PROT_AUTH);
     pap->counter = DEFAULT_PAP_COUNTER;
     return 0;
 }
