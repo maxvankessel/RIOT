@@ -32,13 +32,15 @@
 #include <errno.h>
 #include <string.h>
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 #if ENABLE_DEBUG
 /* For PRIu16 etc. */
 #include <inttypes.h>
 #endif
+
+#define MODULE "gnrc_ppp_fsm: "
 
 #define FOR_EACH_OPTION(opt, buf, size) \
     for (gnrc_ppp_option_t *opt = (gnrc_ppp_option_t *) buf; opt != NULL; opt = ppp_opt_get_next(opt, (gnrc_ppp_option_t *) buf, size))
@@ -177,106 +179,99 @@ static void build_rej_pkt(gnrc_ppp_fsm_t *cp, gnrc_pktsnip_t *pkt, uint8_t *buf)
 }
 
 #if ENABLE_DEBUG
-static void print_state(int state)
+static const char *  print_state(int state)
 {
     switch (state) {
-        case PPP_S_UNDEF:
-            DEBUG("UNDEF");
-            break;
         case PPP_S_INITIAL:
-            DEBUG("INITIAL");
-            break;
-        case PPP_S_STARTING:
-            DEBUG("STARTING");
-            break;
+            return("INITIAL");
         case PPP_S_CLOSED:
-            DEBUG("CLOSED");
-            break;
+            return("CLOSED");
         case PPP_S_STOPPED:
-            DEBUG("STOPPED");
-            break;
+            return("STOPPED");
         case PPP_S_CLOSING:
-            DEBUG("CLOSING");
-            break;
+            return("CLOSING");
         case PPP_S_STOPPING:
-            DEBUG("STOPPING");
-            break;
+            return("STOPPING");
         case PPP_S_REQ_SENT:
-            DEBUG("REQ_SENT");
-            break;
+            return("REQ_SENT");
         case PPP_S_ACK_RCVD:
-            DEBUG("ACK_RECV");
-            break;
+            return("ACK_RECV");
         case PPP_S_ACK_SENT:
-            DEBUG("ACK_SENT");
-            break;
+            return("ACK_SENT");
         case PPP_S_OPENED:
-            DEBUG("OPENED");
-            break;
+            return("OPENED");
+        case PPP_S_UNDEF:
+        default:
+            return("UNDEF");
     }
 }
-static void print_event(uint8_t event)
+static const char * print_event(uint8_t event)
 {
     switch (event) {
         case PPP_E_UP:
-            DEBUG("UP");
-            break;
+            return ("UP");
         case PPP_E_DOWN:
-            DEBUG("DOWN");
-            break;
-        case PPP_E_OPEN:
-            DEBUG("OPEN");
-            break;
+            return("DOWN");
         case PPP_E_CLOSE:
-            DEBUG("CLOSE");
-            break;
+            return("CLOSE");
         case PPP_E_TOp:
-            DEBUG("TO+");
-            break;
+            return("TO+");
         case PPP_E_TOm:
-            DEBUG("TO-");
-            break;
+            return("TO-");
         case PPP_E_RCRp:
-            DEBUG("RCR+");
-            break;
+            return("RCR+");
         case PPP_E_RCRm:
-            DEBUG("RCR-");
-            break;
+            return("RCR-");
         case PPP_E_RCA:
-            DEBUG("RCA");
-            break;
+            return("RCA");
         case PPP_E_RCN:
-            DEBUG("RCN");
-            break;
+            return("RCN");
         case PPP_E_RTR:
-            DEBUG("RTR");
-            break;
+            return("RTR");
         case PPP_E_RTA:
-            DEBUG("RTA");
-            break;
+            return("RTA");
         case PPP_E_RUC:
-            DEBUG("RUC");
-            break;
+            return("RUC");
         case PPP_E_RXJp:
-            DEBUG("RXJ+");
-            break;
+            return("RXJ+");
         case PPP_E_RXJm:
-            DEBUG("RXJ-");
-            break;
+            return("RXJ-");
         case PPP_E_RXR:
-            DEBUG("RXR");
-            break;
+            return("RXR");
+    }
+
+    return "UNKOWN";
+}
+
+static const char * print_prot(int prot)
+{
+    switch(prot) {
+
+        case PROT_DCP:
+            return "DCP";
+
+        case PROT_LCP:
+            return "LCP";
+
+        case PROT_AUTH:
+            return "AUTH";
+
+        case PROT_IPCP:
+            return "IPCP";
+
+        case PROT_IPV4:
+            return "IPV4";
+
+        case PROT_UNDEF:
+        default:
+            return "UNDEF";
     }
 }
-static void print_transition(int state, uint8_t event, int next_state)
+
+static void print_transition(int layer, int state, uint8_t event, int next_state)
 {
-    DEBUG("From state ");
-    print_state(state);
-    DEBUG(" with event ");
-    print_event(event);
-    DEBUG(". Next state is ");
-    print_state(next_state);
-    DEBUG("\n");
+    DEBUG(MODULE" %s state change %s -> %s, with event %s\n", print_prot(layer),
+            print_state(state), print_state(next_state), print_event(event));
 }
 #endif
 
@@ -404,7 +399,7 @@ void scn(gnrc_ppp_fsm_t *cp, void *args)
             send_configure_rej(((gnrc_ppp_protocol_t *) cp)->dev, cp->prottype,((lcp_hdr_t *) pkt->next->data)->id, opts);
             break;
         default:
-            DEBUG("gnrc_ppp: shouldn't be here...\n");
+            DEBUG(MODULE"shouldn't be here...\n");
             break;
     }
 }
@@ -519,8 +514,7 @@ int trigger_fsm_event(gnrc_ppp_fsm_t *cp, int event, gnrc_pktsnip_t *pkt)
     int next_state;
     next_state = state_trans[event][cp->state];
 #if ENABLE_DEBUG
-    DEBUG("%i> ", ((gnrc_ppp_protocol_t *)cp)->id);
-    print_transition(cp->state, event, next_state);
+    print_transition(((gnrc_ppp_protocol_t *)cp)->id, cp->state, event, next_state);
 #endif
 
     /* Keep in same state if there's something wrong (RFC 1661) */
@@ -529,7 +523,7 @@ int trigger_fsm_event(gnrc_ppp_fsm_t *cp, int event, gnrc_pktsnip_t *pkt)
         cp->state = next_state;
     }
     else {
-        DEBUG("gnrc_ppp: fsm received illegal transition. \n");
+        DEBUG(MODULE"received illegal transition. \n");
     }
     /*Check if next state doesn't have a running timer*/
     if (cp->state < PPP_S_CLOSING || cp->state == PPP_S_OPENED) {
@@ -600,10 +594,12 @@ int handle_rcr(gnrc_ppp_fsm_t *cp, gnrc_pktsnip_t *pkt)
     FOR_EACH_OPTION(opt, pkt->data, pkt->size){
         curr_conf = cp->get_conf_by_code(cp, ppp_opt_get_type(opt));
         if (curr_conf) {
-            curr_conf->set(cp, opt, true);
+            if(curr_conf->set) {
+                curr_conf->set(cp, opt, true);
+            }
         }
         else {
-            DEBUG("gnrc_ppp: fsm: handle_rcr inconsistency in pkt. Shouldn't be here\n");
+            DEBUG(MODULE"handle_rcr inconsistency in pkt. \n");
         }
     }
 
@@ -635,10 +631,12 @@ int handle_rca(gnrc_ppp_fsm_t *cp, lcp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
             conf = cp->get_conf_by_code(cp, ppp_opt_get_type(opt));
             if (!conf) {
                 /*Received invalid ACK*/
-                DEBUG("gnrc_ppp: fsm: Peer sent inconsistent ACK\n");
+                DEBUG(MODULE"peer sent inconsistent ACK\n");
                 return -EBADMSG;
             }
-            conf->set(cp, opt, false);
+            if(conf->set) {
+                conf->set(cp, opt, false);
+            }
         }
     }
     return PPP_E_RCA;
@@ -648,19 +646,19 @@ int handle_rcn_nak(gnrc_ppp_fsm_t *cp, lcp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
 {
     if (!pkt) {
         /* If the packet doesn't have options, it's considered as invalid. */
-        DEBUG("gnrc_ppp: fsm: Received NAK packet without options. Discard\n");
+        DEBUG(MODULE"received NAK packet without options. Discard\n");
         return -EBADMSG;
     }
 
     /* Check if options are valid */
     if (ppp_conf_opts_valid(pkt, pkt->size) <= 0) {
-        DEBUG("gnrc_ppp: fsm: Received NAK pkt with invalid options. Discard\n");
+        DEBUG(MODULE"received NAK pkt with invalid options. Discard\n");
         return -EBADMSG;
     }
 
 
     if (hdr->id != cp->cr_sent_identifier) {
-        DEBUG("gnrc_ppp: fsm: ID Mismatch in NAK packet\n");
+        DEBUG(MODULE"id mismatch in NAK packet\n");
         return -EBADMSG;
     }
 
@@ -709,7 +707,7 @@ int handle_rcn_rej(gnrc_ppp_fsm_t *cp, lcp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
     FOR_EACH_OPTION(opt, pkt->data, pkt->size){
         curr_conf = cp->get_conf_by_code(cp, ppp_opt_get_type(opt));
         if (curr_conf == NULL) {
-            DEBUG("gnrc_ppp: Shouldn't be here\n");
+            DEBUG(MODULE"shouldn't be here\n");
             return -EBADMSG;
         }
         curr_conf->flags &= ~GNRC_PPP_OPT_ENABLED;
