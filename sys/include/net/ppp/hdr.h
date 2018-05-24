@@ -91,8 +91,38 @@ typedef struct __attribute__((packed)){
 typedef struct __attribute__((packed)){
     uint8_t code;               /**< Code of PPP packet*/
     uint8_t id;                 /**< Identifier PPP of packet*/
-    network_uint16_t length;    /**< Length of PPP packet including payload*/
+    network_uint16_t length;    /**< Length of header + payload*/
 } lcp_hdr_t;
+
+/**
+ * @brief   Header of a LCP Option packet
+ *
+ * A summary of the Link Control Protocol packet format is shown below.
+ * The fields are transmitted from left to right.
+ *
+ *  0                   1                   2                   3
+ *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |     Code      |  Identifier   |            Length             |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |    Payload ...
+ * +-+-+-+-+
+ *
+ * Exactly one LCP packet is encapsulated in the PPP Information field,
+ * where the PPP Protocol field indicates type hex c021 (Link Control Protocol).
+ *
+ *
+ * @see <a href="https://tools.ietf.org/html/rfc1661#section-5">
+ *          RFC 1661, section 5
+ *      </a>
+ */
+/*  LCP pkt header struct */
+typedef struct __attribute__((packed)){
+    uint8_t type;               /**< type of option */
+    uint8_t length;             /**< length of header + payload */
+} lcp_conf_opt_hdr_t;
+
+
 
 #ifdef __cplusplus
 }
