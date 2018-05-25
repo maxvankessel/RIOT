@@ -277,6 +277,10 @@ static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
             }
         }
 
+        if(!pkt->data) {
+            goto safe_out;
+        }
+
         uint16_t prot = (uint16_t)(*(uint8_t*)(pkt->data));
 
         if(prot & 1) {
