@@ -33,7 +33,6 @@ int generic_init(generic_t *dev)
     int err = -EINVAL;
 
     if(dev){
-        uint8_t retries = 3;
         //gsm_generic_t * priv = (gsm_generic_t *)dev;
 
         /* generic modem should be on by default */

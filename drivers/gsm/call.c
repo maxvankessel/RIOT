@@ -10,8 +10,13 @@
 #include <assert.h>
 #include <errno.h>
 
+#include "periph/uart.h"
 #include "fmt.h"
 #include "log.h"
+
+#include "net/netdev.h"
+#include "net/netdev/ppp.h"
+#include "byteorder.h"
 
 #include "gsm/call.h"
 
@@ -53,6 +58,13 @@ int gsm_call_dial(gsm_t *dev, const char * number, bool is_voice_call)
         if (result > 0) {
             if (strcmp(buf, "CONNECT") == 0) {
                 result = 0;
+
+                if(!is_voice_call){
+                    at_drain(&dev->at_dev);
+
+                    /* switch to data mode requires another buffer */
+                    dev->state = GSM_PPP;
+                }
             }
             else {
                 LOG_INFO(LOG_HEADER"unexpected response: %s\n", buf);
@@ -105,3 +117,76 @@ int __attribute__((weak)) gsm_call_switch_to_data_mode(gsm_t *dev)
     return err;
 }
 
+#ifdef GNRC_PPP
+
+static int _get(netdev_t *netdev, netopt_t opt, void *value, size_t max_len)
+{
+    int res = -ENOTSUP;
+    if (netdev == NULL) {
+        return -ENODEV;
+    }
+
+    switch (opt) {
+        case NETOPT_IS_WIRED:
+            res = 0;
+            break;
+        case NETOPT_DEVICE_TYPE:
+            assert(max_len == sizeof(uint16_t));
+            *((uint16_t *)value) = NETDEV_TYPE_PPPOS;
+            res = sizeof(uint16_t);
+            break;
+        default:
+            res = -ENOTSUP;
+    }
+
+    if (res == -ENOTSUP) {
+        res = netdev_ppp_get((netdev_ppp_t *)netdev, opt, value, max_len);
+    }
+
+    return res;
+}
+
+
+
+static int _set(netdev_t *netdev, netopt_t opt, const void *value,
+        size_t value_len)
+{
+    int res = -ENOTSUP;
+
+    network_uint32_t *nu32 = (network_uint32_t *) value;
+
+    if (netdev == NULL) {
+        return -ENODEV;
+    }
+
+    switch (opt) {
+        case NETOPT_PPP_ACCM_RX:
+            dev->accm.rx = byteorder_ntohl(*nu32);
+            res = sizeof(network_uint32_t);
+            break;
+        case NETOPT_PPP_ACCM_TX:
+            dev->accm.tx = byteorder_ntohl(*nu32);
+            res = sizeof(network_uint32_t);
+            break
+        default:
+            res = -ENOTSUP;
+    }
+
+    if (res == -ENOTSUP) {
+        res = netdev_ppp_set((netdev_ppp_t *)netdev, opt, value, value_len);
+    }
+
+    return res;
+}
+
+
+static const netdev_driver_t gsm_driver = {
+    .send = _send,
+    .recv = _recv,
+    .init = NULL,
+    .isr = _isr,
+    .get = _get,
+    .set = _set,
+};
+
+#endif
