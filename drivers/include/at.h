@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017 Kaspar Schleiser <kaspar@schleiser.de>
+ * Copyright (C) 2018 OTA keys S.A.
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -28,6 +29,7 @@
  *
  * @brief       AT (Hayes) library interface
  * @author      Kaspar Schleiser <kaspar@schleiser.de>
+ * @author      Vincent Dupont <vincent@otakeys.com>
  */
 
 #ifndef AT_H
@@ -35,26 +37,46 @@
 
 #include <stdint.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "isrpipe.h"
 #include "periph/uart.h"
+#include "clist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef AT_SEND_EOL
+#ifndef AT_EOL
 /** End of line character to send after the AT command */
-#define AT_SEND_EOL "\r"
+#define AT_EOL "\r"
 #endif
 
-#ifndef AT_SEND_ECHO
-/** Enable/disable the expected echo after an AT command is sent */
-#define AT_SEND_ECHO 1
+/** Shortcut for getting end of line length */
+#define AT_EOL_LEN  (sizeof(AT_EOL) - 1)
+
+#ifndef AT_BUF_SIZE
+/** Internal buffer size used to process out-of-band data */
+#define AT_BUF_SIZE (128)
 #endif
 
-/** Shortcut for getting send end of line length */
-#define AT_SEND_EOL_LEN  (sizeof(AT_SEND_EOL) - 1)
+/**
+ * @brief   Out-of-band data callback
+ *
+ * @param[in]   arg     optional argument
+ * @param[in]   urc     urc string received from the device
+ */
+typedef void (*at_oob_cb_t)(void *arg, const char *urc);
+
+/**
+ * @brief   Out-of-band data structure
+ */
+typedef struct {
+    clist_node_t list_node; /**< node list */
+    at_oob_cb_t cb;         /**< callback */
+    const char *urc;        /**< URC which must match */
+    void *arg;              /**< optional argument */
+} at_oob_t;
 
 /**
  * @brief AT device structure
@@ -62,6 +84,7 @@ extern "C" {
 typedef struct {
     isrpipe_t isrpipe;      /**< isrpipe used for getting data from uart */
     uart_t uart;            /**< UART device where the AT device is attached */
+    clist_node_t oob_list;
 } at_dev_t;
 
 /**
@@ -124,7 +147,8 @@ int at_send_cmd_wait_prompt(at_dev_t *dev, const char *command, uint32_t timeout
  * @returns     length of response on success
  * @returns     <0 on error
  */
-ssize_t at_send_cmd_get_resp(at_dev_t *dev, const char *command, char *resp_buf, size_t len, uint32_t timeout);
+ssize_t at_send_cmd_get_resp(at_dev_t *dev, const char *command, char *resp_buf,
+                             size_t len, uint32_t timeout);
 
 /**
  * @brief   Send AT command, wait for multiline response
@@ -139,12 +163,14 @@ ssize_t at_send_cmd_get_resp(at_dev_t *dev, const char *command, char *resp_buf,
  * @param[in]   command     command to send
  * @param[out]  resp_buf    buffer for storing response
  * @param[in]   len         len of @p buffer
+ * @param[in]   keep_eol    true to keep EOL character (\r), false otherwise
  * @param[in]   timeout     timeout (in usec)
  *
  * @returns     length of response on success
  * @returns     <0 on error
  */
-ssize_t at_send_cmd_get_lines(at_dev_t *dev, const char *command, char *resp_buf, size_t len, uint32_t timeout);
+ssize_t at_send_cmd_get_lines(at_dev_t *dev, const char *command, char *resp_buf,
+                              size_t len, bool keep_eol, uint32_t timeout);
 
 /**
  * @brief   Expect bytes from device
@@ -168,6 +194,19 @@ int at_expect_bytes(at_dev_t *dev, const char *bytes, uint32_t timeout);
 void at_send_bytes(at_dev_t *dev, const char *bytes, size_t len);
 
 /**
+ * @brief   Read raw bytes from a device
+ *
+ * @param[in]   dev     device to operate on
+ * @param[out]  bytes   buffer to hold bytes to read
+ * @param[in]   len     number of bytes to read
+ * @param[in]   timeout timeout (in usec)
+ *
+ * @return  number of bytes read on success
+ * @return  < 0 on error
+ */
+ssize_t at_read_bytes(at_dev_t *dev, char *bytes, size_t len, uint32_t timeout);
+
+/**
  * @brief   Send command to device
  *
  * @param[in]   dev     device to operate on
@@ -185,12 +224,13 @@ int at_send_cmd(at_dev_t *dev, const char *command, uint32_t timeout);
  * @param[in]   dev         device to operate on
  * @param[in]   resp_buf    buffer to store line
  * @param[in]   len         size of @p buffer
+ * @param[in]   keep_eol    true to keep EOL character (\r), false otherwise
  * @param[in]   timeout     timeout (in usec)
  *
  * @returns     line length on success
  * @returns     <0 on error
  */
-ssize_t at_readline(at_dev_t *dev, char *resp_buf, size_t len, uint32_t timeout);
+ssize_t at_readline(at_dev_t *dev, char *resp_buf, size_t len, bool keep_eol, uint32_t timeout);
 
 /**
  * @brief   Drain device input buffer
@@ -202,9 +242,47 @@ ssize_t at_readline(at_dev_t *dev, char *resp_buf, size_t len, uint32_t timeout)
  */
 void at_drain(at_dev_t *dev);
 
+/**
+ * @brief   add a callback for an out-of-bound data
+ *
+ * @param[in]   dev     device to operate on
+ * @param[in]   oob     out-of-band value to register
+ */
+void at_add_oob(at_dev_t *dev, at_oob_t *oob);
+
+/**
+ * @brief   remove an out-of-band data from the list
+ *
+ * @param[in]   dev     device to operate on
+ * @param[in]   oob     out-of-band value to remove
+ */
+void at_remove_oob(at_dev_t *dev, at_oob_t *oob);
+
+/**
+ * @brief   process out-of-band data received from the device
+ *
+ * The function returns immediately if no data is available to be read.
+ *
+ * @param[in]   dev     device to operate on
+ */
+void at_process_oob(at_dev_t *dev);
+
+/**
+ * @brief   power on the AT interface
+ *
+ * @param[in]   dev     device to operate on
+ */
+void at_dev_poweron(at_dev_t *dev);
+
+/**
+ * @brief   power off the AT interface
+ *
+ * @param[in]   dev     device to operate on
+ */
+void at_dev_poweroff(at_dev_t *dev);
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_H */
-/** @} */

@@ -26,10 +26,8 @@ int at_dev_init(at_dev_t *dev, uart_t uart, uint32_t baudrate, char *buf, size_t
 {
     dev->uart = uart;
     isrpipe_init(&dev->isrpipe, buf, bufsize);
-    uart_init(uart, baudrate, (uart_rx_cb_t) isrpipe_write_one,
+    return uart_init(uart, baudrate, (uart_rx_cb_t) isrpipe_write_one,
               &dev->isrpipe);
-
-    return 0;
 }
 
 int at_expect_bytes(at_dev_t *dev, const char *bytes, uint32_t timeout)
@@ -60,19 +58,17 @@ void at_send_bytes(at_dev_t *dev, const char *bytes, size_t len)
 
 int at_send_cmd(at_dev_t *dev, const char *command, uint32_t timeout)
 {
-    size_t cmdlen = strlen(command);
+    unsigned cmdlen = strlen(command);
 
     uart_write(dev->uart, (const uint8_t *)command, cmdlen);
-    uart_write(dev->uart, (const uint8_t *)AT_SEND_EOL, AT_SEND_EOL_LEN);
+    uart_write(dev->uart, (const uint8_t *)AT_EOL, AT_EOL_LEN);
 
-    if (AT_SEND_ECHO) {
-        if (at_expect_bytes(dev, command, timeout)) {
-            return -1;
-        }
+    if (at_expect_bytes(dev, command, timeout)) {
+        return -1;
+    }
 
-        if (at_expect_bytes(dev, AT_SEND_EOL "\r\n", timeout)) {
-            return -2;
-        }
+    if (at_expect_bytes(dev, AT_EOL "\r\n", timeout)) {
+        return -2;
     }
 
     return 0;
@@ -84,15 +80,19 @@ void at_drain(at_dev_t *dev)
     int res;
 
     do {
-        /* consider no character within 10ms "drained" */
         res = isrpipe_read_timeout(&dev->isrpipe, _tmp, sizeof(_tmp), 10000U);
     } while (res > 0);
+}
+
+ssize_t at_read_bytes(at_dev_t *dev, char *bytes, size_t len, uint32_t timeout)
+{
+    return isrpipe_read_timeout(&dev->isrpipe, bytes, len, timeout);
 }
 
 ssize_t at_send_cmd_get_resp(at_dev_t *dev, const char *command,
                              char *resp_buf, size_t len, uint32_t timeout)
 {
-    ssize_t res;
+    ssize_t res = -1;
 
     at_drain(dev);
 
@@ -101,20 +101,20 @@ ssize_t at_send_cmd_get_resp(at_dev_t *dev, const char *command,
         goto out;
     }
 
-    res = at_readline(dev, resp_buf, len, timeout);
+    res = at_readline(dev, resp_buf, len, false, timeout);
     if (res == 0) {
         /* skip possible empty line */
-        res = at_readline(dev, resp_buf, len, timeout);
+        res = at_readline(dev, resp_buf, len, false, timeout);
     }
 
 out:
     return res;
 }
 
-ssize_t at_send_cmd_get_lines(at_dev_t *dev, const char *command,
-                              char *resp_buf, size_t len, uint32_t timeout)
+ssize_t at_send_cmd_get_lines(at_dev_t *dev, const char *command, char *resp_buf,
+                              size_t len, bool keep_eol, uint32_t timeout)
 {
-    ssize_t res;
+    ssize_t res = -1;
     size_t bytes_left = len - 1;
     char *pos = resp_buf;
 
@@ -128,23 +128,24 @@ ssize_t at_send_cmd_get_lines(at_dev_t *dev, const char *command,
     }
 
     while (1) {
-        res = at_readline(dev, pos, bytes_left, timeout);
+        res = at_readline(dev, pos, bytes_left, keep_eol, timeout);
         if (res == 0) {
+            if (bytes_left) {
+                *pos++ = '\n';
+                bytes_left--;
+            }
             continue;
         }
         else if (res > 0) {
             bytes_left -= res;
-            if ((res == 2) && (strncmp(pos, "OK", 2) == 0)) {
+            if ((res == (2 + (keep_eol ? 1 : 0))) && (strncmp(pos, "OK", 2) == 0)) {
                 res = len - bytes_left;
                 break;
             }
-            else if ((res == 5) && (strncmp(pos, "ERROR", 5) == 0)) {
+            else if ((res == (5 + (keep_eol ? 1 : 0))) && (strncmp(pos, "ERROR", 5) == 0)) {
                 return -1;
             }
             else if (strncmp(pos, "+CME ERROR:", 11) == 0) {
-                return -1;
-            }
-            else if (strncmp(pos, "+CMS ERROR:", 11) == 0) {
                 return -1;
             }
             else {
@@ -174,13 +175,13 @@ int at_send_cmd_wait_prompt(at_dev_t *dev, const char *command, uint32_t timeout
     at_drain(dev);
 
     uart_write(dev->uart, (const uint8_t *)command, cmdlen);
-    uart_write(dev->uart, (const uint8_t *)AT_SEND_EOL, AT_SEND_EOL_LEN);
+    uart_write(dev->uart, (const uint8_t *)AT_EOL, AT_EOL_LEN);
 
     if (at_expect_bytes(dev, command, timeout)) {
         return -1;
     }
 
-    if (at_expect_bytes(dev, AT_SEND_EOL "\n", timeout)) {
+    if (at_expect_bytes(dev, AT_EOL "\n", timeout)) {
         return -2;
     }
 
@@ -209,7 +210,7 @@ int at_send_cmd_wait_ok(at_dev_t *dev, const char *command, uint32_t timeout)
     return res;
 }
 
-ssize_t at_readline(at_dev_t *dev, char *resp_buf, size_t len, uint32_t timeout)
+ssize_t at_readline(at_dev_t *dev, char *resp_buf, size_t len, bool keep_eol, uint32_t timeout)
 {
     ssize_t res = -1;
     char *resp_pos = resp_buf;
@@ -223,7 +224,9 @@ ssize_t at_readline(at_dev_t *dev, char *resp_buf, size_t len, uint32_t timeout)
                 print(resp_pos, read_res);
             }
             if (*resp_pos == '\r') {
-                continue;
+                if (!keep_eol) {
+                    continue;
+                }
             }
             if (*resp_pos == '\n') {
                 *resp_pos = '\0';
@@ -245,4 +248,71 @@ out:
         *resp_buf = '\0';
     }
     return res;
+}
+
+void at_add_oob(at_dev_t *dev, at_oob_t *oob)
+{
+    assert(oob);
+    assert(oob->urc);
+    assert(oob->cb);
+
+    clist_rpush(&dev->oob_list, &oob->list_node);
+}
+
+void at_remove_oob(at_dev_t *dev, at_oob_t *oob)
+{
+    clist_remove(&dev->oob_list, &oob->list_node);
+}
+
+static int _check_oob(clist_node_t *node, void *arg)
+{
+    const char *buf = arg;
+    at_oob_t *oob = container_of(node, at_oob_t, list_node);
+
+    DEBUG("Trying to match with %s\n", oob->urc);
+
+    if (strncmp(buf, oob->urc, strlen(oob->urc)) == 0) {
+        oob->cb(oob->arg, buf);
+        return 1;
+    }
+
+    return 0;
+}
+
+void at_process_oob(at_dev_t *dev)
+{
+    char buf[AT_BUF_SIZE];
+    char *p;
+    size_t read = 0;
+
+    while (1) {
+        int res = isrpipe_try_read(&dev->isrpipe, buf + read, sizeof(buf) - read);
+        if (!res) {
+            return;
+        }
+        if (AT_PRINT_INCOMING) {
+            print(buf, res);
+        }
+        read += res;
+        if (buf[read - 1] != '\n') {
+            DEBUG("Not a full line\n");
+            continue;
+        }
+        p = buf;
+        while ((*p == '\r' || *p == '\n' || *p == ' ') && ((size_t)(p - buf) < read)) {
+            p++;
+        }
+        clist_foreach(&dev->oob_list, _check_oob, p);
+        return;
+    }
+}
+
+void at_dev_poweron(at_dev_t *dev)
+{
+    uart_poweron(dev->uart);
+}
+
+void at_dev_poweroff(at_dev_t *dev)
+{
+    uart_poweroff(dev->uart);
 }
