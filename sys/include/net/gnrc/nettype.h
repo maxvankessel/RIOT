@@ -11,7 +11,7 @@
  * @ingroup     net_gnrc
  * @brief       Protocol type definitions and helper functions
  *
- * The protocol types are used with the @ref net_gnrc_netapi, the @ref net_gnrc_netif,
+ * The protocol types are used with the @ref net_gnrc_netapi, the @ref net_gnrc_netdev,
  * the @ref net_gnrc_netreg, and the @ref net_gnrc_pkt to identify network protocols
  * throughout the network stack.
  *
@@ -22,13 +22,14 @@
  *
  * @author  Martine Lenders <mlenders@inf.fu-berlin.de>
  */
-#ifndef NET_GNRC_NETTYPE_H
-#define NET_GNRC_NETTYPE_H
+#ifndef GNRC_NETTYPE_H_
+#define GNRC_NETTYPE_H_
 
 #include <inttypes.h>
 
 #include "net/ethertype.h"
 #include "net/protnum.h"
+#include "net/ppptype.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,28 +56,6 @@ typedef enum {
 #ifdef MODULE_GNRC_SIXLOWPAN
     GNRC_NETTYPE_SIXLOWPAN,     /**< Protocol is 6LoWPAN */
 #endif
-
-    /**
-     * @{
-     * @name Link layer
-     */
-#ifdef MODULE_GNRC_GOMACH
-    GNRC_NETTYPE_GOMACH,         /**< Protocol is GoMacH */
-#endif
-    /**
-     * @}
-     */
-
-    /**
-     * @{
-     * @name Link layer
-     */
-#ifdef MODULE_GNRC_LWMAC
-    GNRC_NETTYPE_LWMAC,          /**< Protocol is lwMAC */
-#endif
-    /**
-     * @}
-     */
 
     /**
      * @{
@@ -130,6 +109,23 @@ typedef enum {
      * @}
      */
 
+    /**
+     * @{
+     * @name Link layer
+     */
+    GNRC_NETTYPE_HDLC,  /**< Protocol is HDLC */
+    GNRC_NETTYPE_PPP,   /**< Protocol is generic PPP */
+
+#ifdef MODULE_GNRC_PPP
+    GNRC_NETTYPE_LCP,   /**< Protocol is PPP LCP */
+    GNRC_NETTYPE_IPCP,  /**< Protocol is PPP IPCP */
+    GNRC_NETTYPE_IPV4,  /**< Protocol is IPV4 encapsulated in HDLC frame */
+    GNRC_NETTYPE_PAP,   /**< Protocol is PAP auth */
+#endif
+    /**
+     * @}
+     */
+
     GNRC_NETTYPE_NUMOF,         /**< maximum number of available protocols */
 } gnrc_nettype_t;
 
@@ -163,6 +159,7 @@ static inline gnrc_nettype_t gnrc_nettype_from_ethertype(uint16_t type)
             return GNRC_NETTYPE_UNDEF;
     }
 }
+
 
 /**
  * @brief   Translates @ref net_gnrc_nettype to an Ether Type number
@@ -275,9 +272,52 @@ static inline uint8_t gnrc_nettype_to_protnum(gnrc_nettype_t type)
     }
 }
 
+static inline gnrc_nettype_t gnrc_nettype_from_ppp_protnum(uint16_t protnum)
+{
+    switch (protnum) {
+#ifdef MODULE_GNRC_PPP
+        case PPPTYPE_LCP:
+            return GNRC_NETTYPE_LCP;
+        case PPPTYPE_NCP_IPV4:
+            return GNRC_NETTYPE_IPCP;
+        case PPPTYPE_IPV4:
+            return GNRC_NETTYPE_IPV4;
+        case PPPTYPE_PAP:
+            return GNRC_NETTYPE_PAP;
+#   ifdef MODULE_GNRC_IPV6
+        case PPPTYPE_IPV6:
+            return GNRC_NETTYPE_IPV6;
+#   endif
+#endif
+        default:
+            return GNRC_NETTYPE_UNDEF;
+    }
+}
+static inline uint16_t gnrc_nettype_to_ppp_protnum(gnrc_nettype_t type)
+{
+    switch (type) {
+#ifdef MODULE_GNRC_PPP
+        case GNRC_NETTYPE_LCP:
+            return PPPTYPE_LCP;
+        case GNRC_NETTYPE_IPCP:
+            return PPPTYPE_NCP_IPV4;
+#   ifdef MODULE_GNRC_IPV6
+        case GNRC_NETTYPE_IPV6:
+            return PPPTYPE_IPV6;
+#   endif
+        case GNRC_NETTYPE_IPV4:
+            return PPPTYPE_IPV4;
+        case GNRC_NETTYPE_PAP:
+            return PPPTYPE_PAP;
+#endif
+        default:
+            return PPPTYPE_UNKNOWN;
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* NET_GNRC_NETTYPE_H */
+#endif /* GNRC_NETTYPE_H_ */
 /** @} */

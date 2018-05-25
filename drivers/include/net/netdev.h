@@ -216,6 +216,7 @@ enum {
     NETDEV_TYPE_LORA,
     NETDEV_TYPE_NRFMIN,
     NETDEV_TYPE_SLIP,
+    NETDEV_TYPE_PPPOS,
 };
 
 /**
@@ -238,6 +239,8 @@ typedef enum {
     NETDEV_EVENT_CRC_ERROR,                 /**< wrong CRC */
     NETDEV_EVENT_FHSS_CHANGE_CHANNEL,       /**< channel changed */
     NETDEV_EVENT_CAD_DONE,                  /**< channel activity detection done */
+    NETDEV_EVENT_LAYER_UP,                  /**< drivers is ready to receive data packets */
+    NETDEV_EVENT_LAYER_DOWN,                /**< drivers is not ready to receive data packets */
     /* expand this list if needed */
 } netdev_event_t;
 

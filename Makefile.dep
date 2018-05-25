@@ -27,6 +27,12 @@ ifneq (,$(filter csma_sender,$(USEMODULE)))
   USEMODULE += xtimer
 endif
 
+ifneq (,$(filter hdlc,$(USEMODULE)))
+  USEMODULE += netdev_layer
+  USEMODULE += tsrb
+  USEMODULE += xtimer
+endif
+
 ifneq (,$(filter gnrc_mac,$(USEMODULE)))
   USEMODULE += gnrc_priority_pktqueue
   USEMODULE += csma_sender
@@ -119,6 +125,18 @@ ifneq (,$(filter netdev_tap,$(USEMODULE)))
   USEMODULE += netif
   USEMODULE += netdev_eth
   USEMODULE += iolist
+endif
+
+ifneq (,$(filter gnrc_zep,$(USEMODULE)))
+  USEMODULE += hashes
+  USEMODULE += ieee802154
+  USEMODULE += gnrc_udp
+  USEMODULE += random
+  USEMODULE += xtimer
+endif
+
+ifneq (,$(filter gcoap,$(USEMODULE)))
+  USEMODULE += gnrc_udp
 endif
 
 ifneq (,$(filter gnrc_tftp,$(USEMODULE)))

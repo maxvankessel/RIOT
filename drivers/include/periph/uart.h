@@ -162,6 +162,13 @@ void uart_poweron(uart_t uart);
  */
 void uart_poweroff(uart_t uart);
 
+/**
+ * @brief Closes uart
+ *
+ * @param uart
+ */
+void uart_close(uart_t uart);
+
 #ifdef __cplusplus
 }
 #endif

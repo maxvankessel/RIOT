@@ -187,3 +187,8 @@ void uart_poweroff(uart_t uart)
 {
     (void)uart;
 }
+
+void uart_close(uart_t uart)
+{
+    real_close(tty_fds[uart]);
+}
