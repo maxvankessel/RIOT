@@ -276,6 +276,8 @@ ifneq (,$(filter pppos,$(USEMODULE)))
   USEMODULE += xtimer
   USEMODULE += tsrb
   USEMODULE += hdlc
+  USEMODULE += fmt
+  USEMODULE += at
   USEMODULE += netdev_ppp
   FEATURES_REQUIRED += periph_gpio
   FEATURES_REQUIRED += periph_uart

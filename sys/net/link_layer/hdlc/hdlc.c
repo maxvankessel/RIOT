@@ -29,8 +29,8 @@
 #include "net/hdlc/fcs.h"
 #include "net/hdlc.h"
 
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
+#define LOG_LEVEL LOG_ALL
+#include "log.h"
 
 #define MODULE  "hdlc: "
 
@@ -92,6 +92,7 @@ static int _rx_cb(void *arg, uint8_t byte)
             else if (dev->fcs != FCS16_GOOD) {
                 /* drop, bad fcs */
                 _drop_input(dev);
+                LOG_WARNING(MODULE"bad fcs, dropping frame\n");
             }
             else {
                 /* complete package */
@@ -146,7 +147,7 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
     uint8_t *ptr = buf;
 
     if(len > 0) {
-        DEBUG(MODULE);
+        LOG_DEBUG(MODULE);
     }
 
     for(; length > 0; length--) {
@@ -157,7 +158,7 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
             return -EIO;
         }
 
-        DEBUG("%02x ", byte);
+        LOG_DEBUG("%02x ", byte);
 
         /* start or restart */
         if(byte == HDLC_FLAG_SEQUENCE) {
@@ -165,7 +166,7 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
                 /* complete, remove checksum */
                 res -= 2;
 
-                DEBUG("[IN]\n");
+                LOG_DEBUG("[IN]\n");
 
                 return res;
             }
@@ -201,6 +202,9 @@ static void _isr(netdev_t *netdev)
 
         if(netdev_recv_pass(netdev, &byte, 1, NULL) > 0) {
             if(_rx_cb(dev, byte) > 0) {
+
+                LOG_INFO(MODULE"frame received\n");
+
                 if (netdev->event_callback != NULL) {
                     netdev->event_callback((netdev_t *)dev, NETDEV_EVENT_RX_COMPLETE);
                 }
@@ -235,7 +239,7 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
     uint16_t fcs = FCS16_INIT;
     uint8_t * ptr = dev->txmem;
 
-    DEBUG(MODULE"%02x ", HDLC_FLAG_SEQUENCE);
+    LOG_DEBUG(MODULE"%02x ", HDLC_FLAG_SEQUENCE);
 
     ptr = _add(ptr, HDLC_FLAG_SEQUENCE, true, NULL);
 
@@ -245,20 +249,20 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
         for(unsigned j = 0; j < iol->iol_len; j++, data++) {
             ptr = _add(ptr, *data, false, &fcs);
 
-            DEBUG("%02x ", *data);
+            LOG_DEBUG("%02x ", *data);
         }
     }
 
     fcs ^= 0xffff;
     ptr = _add(ptr, (uint8_t) fcs & 0x00ff, false, NULL);
-    DEBUG("%02x ", (uint8_t)fcs & 0x00ff);
+    LOG_DEBUG("%02x ", (uint8_t)fcs & 0x00ff);
 
     ptr = _add(ptr, (uint8_t) (fcs >> 8) & 0x00ff, false, NULL);
-    DEBUG("%02x ", (uint8_t)(fcs >> 8));
+    LOG_DEBUG("%02x ", (uint8_t)(fcs >> 8));
 
     ptr = _add(ptr, HDLC_FLAG_SEQUENCE, true, NULL);
 
-    DEBUG("%02x [OUT]\n", HDLC_FLAG_SEQUENCE);
+    LOG_DEBUG("%02x [OUT]\n", HDLC_FLAG_SEQUENCE);
 
     iolist_t new_iolist = {
             .iol_next = NULL,
@@ -282,7 +286,6 @@ static const netdev_driver_t hdlc_driver = {
 void hdlc_setup(hdlc_t *dev)
 {
     netdev_t *netdev = (netdev_t *)&dev->netdev;
-
 
     netdev->driver = &hdlc_driver;
 }

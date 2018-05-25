@@ -21,42 +21,40 @@
 #include "net/netdev.h"
 
 #include "at.h"
-#include "log.h"
 #include "fmt.h"
+#include "log.h"
 #include "xtimer.h"
 
 #include "pppos.h"
-
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
 
 #define MODULE  "pppos: "
 
 #define ACCM_DEFAULT            (0xFFFFFFFFUL)
 
 #define ESCAPE_P(accm, c)       ((c > 0x1f) ? c : ((accm) & (1 << c)) ? 0 : c)
-#define NEED_ESCAPE(accm, c)    (((c < 0x1f) && ((accm) & (1 << c))) ? c : 0)
+#define NEED_ESCAPE(accm, c)    ((c < 0x20) && ((accm) & (1 << c)))
 
+int _configure_context(pppos_t *dev, uint8_t ctx, const char * ctx_type, const char * apn);
 int _dialup(pppos_t *dev, const char * number);
 
 static void _pppos_rx_cb(void *arg, uint8_t byte)
 {
     pppos_t *dev = arg;
     netdev_t *netdev = (netdev_t *)&dev->netdev;
-    uint8_t esc = ESCAPE_P(dev->accm.rx, byte);
 
-    if(esc){
-
+    if(ESCAPE_P(dev->accm.rx, byte)){
         tsrb_add_one(&dev->inbuf, byte);
 
-        /* new character */
-        if (netdev->event_callback != NULL) {
-            netdev->event_callback(netdev, NETDEV_EVENT_ISR);
+        if((byte == HDLC_FLAG_SEQUENCE) && (tsrb_avail(&dev->inbuf) > 0)) {
+            /* new character */
+            if (netdev->event_callback != NULL) {
+                netdev->event_callback(netdev, NETDEV_EVENT_ISR);
+            }
         }
     }
     else {
         /* dropping accm chars */
-        DEBUG(MODULE"dropping accm char %x\n", byte);
+        LOG_INFO(MODULE"dropping accm char %x\n", byte);
     }
 }
 
@@ -64,7 +62,7 @@ static int _init(netdev_t *netdev)
 {
     pppos_t *dev = (pppos_t *)netdev;
 
-    DEBUG(MODULE"initializing device %p on UART %i with baudrate %" PRIu32 "\n",
+    LOG_INFO(MODULE"initializing device %p on UART %i with baudrate %" PRIu32 "\n",
           (void *)dev, dev->config.uart, dev->config.baudrate);
 
     /* initialize at parser */
@@ -90,7 +88,8 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
 
     int bytes = 0;
 
-    DEBUG(MODULE"sending iolist\n");
+    LOG_INFO(MODULE"sending iolist\n");
+    LOG_DEBUG(MODULE);
 
     for(const iolist_t *iol = iolist; iol; iol = iol->iol_next) {
         uint8_t * data = iol->iol_base;
@@ -98,15 +97,21 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
         for (unsigned j = 0; j < iol->iol_len; j++, data++) {
             if (NEED_ESCAPE(dev->accm.tx, *data)) {
                 uint8_t esc = HDLC_CONTROL_ESCAPE;
+                LOG_DEBUG("%02x ", esc);
                 uart_write(dev->config.uart, &esc, 1);
                 *data ^= HDLC_SIX_CMPL;
+
+                bytes++;
             }
 
             uart_write(dev->config.uart, data, 1);
+            LOG_DEBUG("%02x ", *data);
 
             bytes++;
         }
     }
+
+    LOG_DEBUG("(%u) [OUT]\n", bytes);
 
     return bytes;
 }
@@ -143,9 +148,9 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
 
 static void _isr(netdev_t *dev)
 {
-    DEBUG(MODULE"handling ISR event\n");
+    LOG_DEBUG(MODULE"handling ISR event\n");
     if (dev->event_callback != NULL) {
-        DEBUG(MODULE"event handler set, issuing RX_COMPLETE event\n");
+        LOG_INFO(MODULE"event handler set, issuing RX_COMPLETE event\n");
         dev->event_callback(dev, NETDEV_EVENT_RX_COMPLETE);
     }
 }
@@ -210,7 +215,9 @@ static int _set(netdev_t *netdev, netopt_t opt, const void *value,
             break;
         case NETOPT_DIAL_UP:
             if(value) {
-                res = _dialup(dev, value);
+                if((res = _configure_context(dev, 1, "IP", dev->apn)) >= 0) {
+                    res = _dialup(dev, value);
+                }
             }
             else {
                 if (netdev->event_callback != NULL) {
@@ -249,37 +256,42 @@ static const netdev_driver_t pppos_driver = {
     .set = _set,
 };
 
-int _dialup(pppos_t *dev, const char * number)
+int _configure_context(pppos_t *dev, uint8_t ctx, const char * ctx_type, const char * apn)
 {
     int err;
     char buf[128] = { 0 };
     char *pos = buf;
 
     /* TODO: make dynamic */
-    uint8_t ctx = 1;
-    const char * ctx_type = "IP";
-
     pos += fmt_str(pos, "AT+CGDCONT=");
     pos += fmt_u32_dec(pos, ctx);
     pos += fmt_str(pos, ",\"");
     pos += fmt_str(pos, ctx_type);
     pos += fmt_str(pos, "\",\"");
-    pos += fmt_str(pos, dev->apn);
+    pos += fmt_str(pos, apn);
     pos += fmt_str(pos, "\"\0");
 
     /* AT+CGDCONT=<ctx>,"<type>","<apn>" */
     err = at_send_cmd_wait_ok(&dev->at, buf, (5 * US_PER_SEC));
     if(err < 0) {
         LOG_ERROR(MODULE" no modem response\n");
-        return -EIO;
+        err = -EIO;
     }
 
-    pos = buf;
+    return err;
+}
+
+int _dialup(pppos_t *dev, const char * number)
+{
+    int err;
+    char buf[32] = { 0 };
+    char *pos = buf;
+
     pos += fmt_str(pos, "ATD");
     pos += fmt_str(pos, number);
     *pos = '\0';
 
-    err = at_send_cmd_get_resp(&dev->at, buf, buf, 128, (5 * US_PER_SEC));
+    err = at_send_cmd_get_resp(&dev->at, buf, buf, 32, (5 * US_PER_SEC));
     if(err < 0) {
          LOG_ERROR(MODULE" no modem response\n");
          return -EIO;
