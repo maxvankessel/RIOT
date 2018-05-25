@@ -1,6 +1,9 @@
 ifneq (,$(filter csma_sender,$(USEMODULE)))
   DIRS += net/link_layer/csma_sender
 endif
+ifneq (,$(filter hdlc,$(USEMODULE)))
+  DIRS += net/link_layer/hdlc
+endif
 ifneq (,$(filter posix_semaphore,$(USEMODULE)))
   DIRS += posix/semaphore
 endif
@@ -60,6 +63,9 @@ ifneq (,$(filter cipher_modes,$(USEMODULE)))
 endif
 ifneq (,$(filter nhdp,$(USEMODULE)))
   DIRS += net/routing/nhdp
+endif
+ifneq (,$(filter gnrc_ppp,$(USEMODULE)))
+    DIRS += net/gnrc/link_layer/ppp
 endif
 ifneq (,$(filter fib,$(USEMODULE)))
   DIRS += net/network_layer/fib

@@ -287,6 +287,18 @@ ifneq (,$(filter pcd8544,$(USEMODULE)))
   USEMODULE += xtimer
 endif
 
+ifneq (,$(filter pppos,$(USEMODULE)))
+  USEMODULE += at
+  USEMODULE += xtimer
+  USEMODULE += tsrb
+  USEMODULE += hdlc
+  USEMODULE += fmt
+  USEMODULE += at
+  USEMODULE += netdev_ppp
+  FEATURES_REQUIRED += periph_gpio
+  FEATURES_REQUIRED += periph_uart
+endif
+
 ifneq (,$(filter pir,$(USEMODULE)))
   FEATURES_REQUIRED += periph_gpio
   USEMODULE += xtimer
