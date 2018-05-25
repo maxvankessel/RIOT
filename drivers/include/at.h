@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017 Kaspar Schleiser <kaspar@schleiser.de>
+ * Copyright (C) 2018 OTA keys S.A.
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -28,6 +29,7 @@
  *
  * @brief       AT (Hayes) library interface
  * @author      Kaspar Schleiser <kaspar@schleiser.de>
+ * @author      Vincent Dupont <vincent@otakeys.com>
  */
 
 #ifndef AT_H
@@ -45,18 +47,26 @@
 extern "C" {
 #endif
 
-#ifndef AT_SEND_EOL
+#ifndef AT_EOL
 /** End of line character to send after the AT command */
-#define AT_SEND_EOL "\r"
+#define AT_EOL "\r"
 #endif
 
-#ifndef AT_SEND_ECHO
-/** Enable/disable the expected echo after an AT command is sent */
-#define AT_SEND_ECHO 1
+/** Shortcut for getting end of line length */
+#define AT_EOL_LEN  (sizeof(AT_EOL) - 1)
+
+#ifndef AT_BUF_SIZE
+/** Internal buffer size used to process out-of-band data */
+#define AT_BUF_SIZE (128)
 #endif
 
-/** Shortcut for getting send end of line length */
-#define AT_SEND_EOL_LEN  (sizeof(AT_SEND_EOL) - 1)
+/**
+ * @brief   Out-of-band data callback
+ *
+ * @param[in]   arg     optional argument
+ * @param[in]   urc     urc string received from the device
+ */
+typedef void (*at_oob_cb_t)(void *arg, const char *urc);
 
 #ifndef AT_RECV_EOL_1
 /** 1st end of line character received (S3 aka CR character for a modem) */
@@ -175,7 +185,8 @@ int at_send_cmd_wait_prompt(at_dev_t *dev, const char *command, uint32_t timeout
  * @returns     length of response on success
  * @returns     <0 on error
  */
-ssize_t at_send_cmd_get_resp(at_dev_t *dev, const char *command, char *resp_buf, size_t len, uint32_t timeout);
+ssize_t at_send_cmd_get_resp(at_dev_t *dev, const char *command, char *resp_buf,
+                             size_t len, uint32_t timeout);
 
 /**
  * @brief   Send AT command, wait for multiline response
@@ -219,6 +230,19 @@ int at_expect_bytes(at_dev_t *dev, const char *bytes, uint32_t timeout);
  * @param[in]   len     number of bytes to send
  */
 void at_send_bytes(at_dev_t *dev, const char *bytes, size_t len);
+
+/**
+ * @brief   Read raw bytes from a device
+ *
+ * @param[in]   dev     device to operate on
+ * @param[out]  bytes   buffer to hold bytes to read
+ * @param[in]   len     number of bytes to read
+ * @param[in]   timeout timeout (in usec)
+ *
+ * @return  number of bytes read on success
+ * @return  < 0 on error
+ */
+ssize_t at_read_bytes(at_dev_t *dev, char *bytes, size_t len, uint32_t timeout);
 
 /**
  * @brief   Send command to device
@@ -287,4 +311,3 @@ void at_process_urc(at_dev_t *dev, uint32_t timeout);
 #endif
 
 #endif /* AT_H */
-/** @} */
