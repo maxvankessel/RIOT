@@ -60,10 +60,7 @@ static const quectel_params_t params = {
     .dcd_pin            = MODEM_DCD_PIN,
 };
 
-static quectel_t modem = {
-    .base.driver = &quectel_driver,
-};
-
+static quectel_t modem;
 #define MAX_CMD_LEN 128
 int _at_send_handler(int argc, char **argv)
 {
@@ -95,7 +92,7 @@ int _modem_init_handler(int argc, char **argv)
     (void)argc;
     (void)argv;
 
-    gsm_init((gsm_t *)&modem, (gsm_params_t *)&params);
+    gsm_init((gsm_t *)&modem, (gsm_params_t *)&params, &quectel_driver);
     return 0;
 }
 

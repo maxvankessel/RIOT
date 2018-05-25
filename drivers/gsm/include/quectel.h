@@ -68,8 +68,6 @@ typedef struct gsm_quectel_params {
     bool        invert_status_pin;  /**< select inversion of status pin */
     gpio_t      reset_pin;          /**< quectel reset pin*/
     bool        invert_reset_pin;   /**< select inversion of reset pin*/
-    gpio_t      dtr_pin;            /**< quectel dtr pin (modem intput) */
-    gpio_t      dcd_pin;            /**< quectel dcd pin (modem output) */
 } quectel_params_t;
 
 typedef struct quectel {

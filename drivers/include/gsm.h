@@ -89,6 +89,7 @@ enum {
     GSM_OFF,            /**< GSM_OFF */
     GSM_BOOT,           /**< GSM_BOOT */
     GSM_ON,             /**< GSM_ON */
+    GSM_PPP,            /**< GSM_PPP point to point prot active */
     GSM_SLEEP,          /**< GSM_SLEEP */
 
 };
@@ -110,6 +111,14 @@ typedef struct gsm_params {
 } gsm_params_t;
 
 typedef struct gsm {
+#ifdef GNRC_PPP
+    netdev_ppp_t netdev;                            /**< parent class */
+
+    struct {
+        uint32_t rx;
+        uint32_t tx;
+    } accm;                                         /**< async ctl char map*/
+#endif
     const gsm_driver_t  *driver;                    /**< gsm driver */
     const gsm_params_t  *params;                    /**< gsm parameters */
 
@@ -182,11 +191,12 @@ struct gsm_driver {
  *
  * @param[in] dev       Device to initialize
  * @param[in] params
+ * @param[in] driver
  *
  * @return    0 for success
  * @return  < 0 for failure
  */
-int gsm_init(gsm_t *dev, gsm_params_t *params);
+int gsm_init(gsm_t *dev, const gsm_params_t *params, const gsm_driver_t *driver);
 
 /**
  * @brief   Powers the gsm module.

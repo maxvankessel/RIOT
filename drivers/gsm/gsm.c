@@ -18,6 +18,11 @@
 #include "gsm.h"
 #include "fmt.h"
 #include "xtimer.h"
+#include "isrpipe.h"
+
+#ifdef GNRC_PPP
+#define ACCM_DEFAULT            (0xFFFFFFFFUL)
+#endif
 
 /**
  * @ingroup     drivers_gsm
@@ -37,8 +42,9 @@ static void * idle_thread(void *arg);
 
 static void creg_cb(void *arg, const char *buf);
 static void ring_cb(void *arg);
+static void dcd_cb(void *arg);
 
-int gsm_init(gsm_t *dev, gsm_params_t *params)
+int gsm_init(gsm_t *dev, const gsm_params_t *params, const gsm_driver_t *driver)
 {
     int err = -EINVAL;
 
@@ -50,6 +56,7 @@ int gsm_init(gsm_t *dev, gsm_params_t *params)
 
         /* store provided parameters in device */
         dev->params = params;
+        dev->driver = driver;
 
         /* initialize AT device */
         err = at_dev_init(&dev->at_dev, params->uart, params->baudrate,
@@ -73,6 +80,10 @@ int gsm_init(gsm_t *dev, gsm_params_t *params)
             gpio_init_int(dev->params->ri_pin, GPIO_IN, GPIO_FALLING, ring_cb, dev);
         }
 
+#ifdef GNRC_PPP
+        dev->accm.rx = ACCM_DEFAULT;
+        dev->accm.tx = ACCM_DEFAULT;
+#endif
         dev->pid = thread_create(dev->stack, GSM_THREAD_STACKSIZE, GSM_THREAD_PRIO,
                 THREAD_CREATE_STACKTEST, idle_thread, dev, "gsm");
 
@@ -453,10 +464,10 @@ ssize_t gsm_get_simcard_identification(gsm_t *dev, char *outbuf, size_t len)
             pos = strchr(buf, ':');
             if(pos) {
                 size_t outlen = 0;
-                while((!isalnum(*(++pos)))
+                while((!isalnum((uint8_t)(*(++pos))))
                         && ((buf + GSM_AT_LINEBUFFER_SIZE) > pos)) {  }
 
-                while((isalnum(*pos)) && (len--)) {
+                while((isalnum((uint8_t)*pos)) && (len--)) {
                     *outbuf++ = *pos++;
                     outlen++;
                 }
@@ -497,7 +508,7 @@ ssize_t gsm_get_identification(gsm_t *dev, char *buf, size_t len)
                 pos -= 2;
 
                 while(--pos != buf) {
-                    if(isalnum(*pos)) {
+                    if(isalnum((uint8_t)*pos)) {
                         break;
                     }
                 }
@@ -711,7 +722,10 @@ static void * idle_thread(void *arg)
     }
 
     while(1) {
-        if(dev->state > GSM_OFF) {
+        if(dev->state == GSM_PPP) {
+            //gsm_ppp_handle(dev);
+        }
+        else if (dev->state > GSM_OFF) {
             rmutex_lock(&dev->mutex);
             at_process_oob(&dev->at_dev);
             rmutex_unlock(&dev->mutex);
@@ -737,6 +751,13 @@ static void ring_cb(void *arg)
         LOG_INFO(LOG_HEADER"ring\n");
         thread_wakeup(((gsm_t *)arg)->pid);
     }
-
 }
+
+static void dcd_cb(void *arg)
+{
+    if(arg) {
+        LOG_INFO(LOG_HEADER"data carrier\n");
+    }
+}
+
 

@@ -6,6 +6,7 @@ USEMODULE += ps
 USEMODULE += gsm_quectel
 USEMODULE += gsm_gprs
 USEMODULE += gsm_call
+USEMODULE += gnrc_ppp
 
 CFLAGS_OPT=-O0
 CFLAGS_DBG=-ggdb -g
