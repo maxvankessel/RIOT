@@ -294,7 +294,6 @@ void tlu(gnrc_ppp_fsm_t *cp, void *args)
         cp->on_layer_up(cp);
     }
     send_ppp_event(&((gnrc_ppp_protocol_t *)cp)->msg, ppp_msg_set(_fsm_upper_layer(cp), PPP_LINKUP));
-    (void) cp;
 }
 
 void tld(gnrc_ppp_fsm_t *cp, void *args)
@@ -306,7 +305,6 @@ void tld(gnrc_ppp_fsm_t *cp, void *args)
         cp->on_layer_down(cp);
     }
     send_ppp_event(&((gnrc_ppp_protocol_t *) cp)->msg, ppp_msg_set(_fsm_upper_layer(cp), PPP_LINKDOWN));
-    (void) cp;
 }
 
 void tls(gnrc_ppp_fsm_t *cp, void *args)
@@ -314,14 +312,12 @@ void tls(gnrc_ppp_fsm_t *cp, void *args)
     (void)args;
     _reset_cp_conf(cp->conf);
     send_ppp_event(&((gnrc_ppp_protocol_t *) cp)->msg, ppp_msg_set(_fsm_lower_layer(cp), PPP_UL_STARTED));
-    (void) cp;
 }
 
 void tlf(gnrc_ppp_fsm_t *cp, void *args)
 {
     (void)args;
     send_ppp_event(&((gnrc_ppp_protocol_t *) cp)->msg, ppp_msg_set(_fsm_lower_layer(cp), PPP_UL_FINISHED));
-    (void) cp;
 }
 
 void irc(gnrc_ppp_fsm_t *cp, void *args)
@@ -433,20 +429,13 @@ void scj(gnrc_ppp_fsm_t *cp, void *args)
 void ser(gnrc_ppp_fsm_t *cp, void *args)
 {
     gnrc_pktsnip_t *pkt = (gnrc_pktsnip_t *) args;
-    gnrc_pktsnip_t *ppp_hdr = gnrc_pktbuf_mark(pkt, sizeof(lcp_hdr_t), cp->prottype);
-    lcp_hdr_t *hdr = ppp_hdr->data;
-    uint8_t id = hdr->id;
+    lcp_hdr_t *hdr = pkt->next->data;
 
-    uint8_t code = hdr->code;
-    gnrc_pktsnip_t *data = NULL;
+    gnrc_pktsnip_t *data = gnrc_pktbuf_add(NULL, pkt->data, pkt->size, GNRC_NETTYPE_UNDEF);
 
-    if (pkt != ppp_hdr) {
-        data = gnrc_pktbuf_add(NULL, pkt->data, pkt->size, GNRC_NETTYPE_UNDEF);
-    }
-
-    switch (code) {
+    switch (hdr->code) {
         case GNRC_PPP_ECHO_REQ:
-            send_echo_reply(((gnrc_ppp_protocol_t *) cp)->dev, cp->prottype, id, data);
+            send_echo_reply(((gnrc_ppp_protocol_t *) cp)->dev, cp->prottype, hdr->id, data);
             break;
         case GNRC_PPP_ECHO_REP:
             break;
@@ -613,7 +602,7 @@ int handle_rca(gnrc_ppp_fsm_t *cp, lcp_hdr_t *hdr, gnrc_pktsnip_t *pkt)
 
     void *opts = NULL;
 
-    if (pkt) {
+    if (pkt->data) {
         if (ppp_conf_opts_valid(pkt, pkt->size) <= 0) {
             return -EBADMSG;
         }
