@@ -50,17 +50,12 @@ static gnrc_netif_t *_iface;
 
 int _ppp_dialout_handler(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
     int result = -1;
 
-    if (argc < 2) {
-            printf("Usage: %s <apn>\n", argv[0]);
-            return 1;
-    }
-
     if(_iface) {
-        result = gnrc_netapi_set(_iface->pid, NETOPT_APN_NAME, 0, argv[1], strlen(argv[1]));
+        if(argc > 1) {
+            result = gnrc_netapi_set(_iface->pid, NETOPT_APN_NAME, 0, argv[1], strlen(argv[1]));
+        }
 
         result = gnrc_netapi_set(_iface->pid, NETOPT_DIAL_UP, 0, "*99#", 5);
     }
@@ -84,7 +79,6 @@ static const shell_command_t commands[] = {
  */
 int main(void)
 {
-
     pppos_setup(&_pppos, &_pppos_params);
 
     hdlc_setup(&_hdlc);
