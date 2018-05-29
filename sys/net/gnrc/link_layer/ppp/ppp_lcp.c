@@ -27,9 +27,6 @@
 #include <errno.h>
 #include "net/gnrc/ppp/fsm.h"
 
-#define ENABLE_DEBUG    (0)
-#include "debug.h"
-
 #if ENABLE_DEBUG
 /* For PRIu16 etc. */
 #include <inttypes.h>
@@ -225,7 +222,7 @@ int lcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
 
     if (ppp_event == PPP_MONITOR) {
         /*Send Echo Request*/
-        DEBUG("gnrc_ppp: Sending echo request (link monitor)");
+        DEBUG("gnrc_ppp: Sending echo request (link monitor)\n");
         gnrc_pktsnip_t *pkt = pkt_build(GNRC_NETTYPE_LCP, GNRC_PPP_ECHO_REQ, ((gnrc_ppp_lcp_t *) lcp)->monitor_id++, NULL);
         send_packet((netdev_ppp_t *)protocol->dev, pkt);
         return 0;

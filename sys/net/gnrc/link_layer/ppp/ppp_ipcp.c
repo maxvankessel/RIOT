@@ -32,9 +32,6 @@
 #include "net/inet_csum.h"
 #include <errno.h>
 
-#define ENABLE_DEBUG    (0)
-#include "debug.h"
-
 #if ENABLE_DEBUG
 /* For PRIu16 etc. */
 #include <inttypes.h>
@@ -221,10 +218,19 @@ int handle_ipv4(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
             DEBUG("gnrc_ppp: Obtained IP address! \n");
             DEBUG("Ip address is %i.%i.%i.%i\n", ipcp->ip.u8[0], ipcp->ip.u8[1], ipcp->ip.u8[2], ipcp->ip.u8[3]);
             protocol->state = PROTOCOL_UP;
+
+            if(pppdev->netdev.event_callback != NULL) {
+                pppdev->netdev.event_callback((netdev_t *)pppdev, NETDEV_EVENT_LINK_UP);
+            }
+
             break;
         case PPP_LINKDOWN:
             DEBUG("gnrc_ppp: IPv4 down\n");
             protocol->state = PROTOCOL_DOWN;
+
+            if(pppdev->netdev.event_callback != NULL) {
+                pppdev->netdev.event_callback((netdev_t *)pppdev, NETDEV_EVENT_LINK_DOWN);
+            }
             break;
         default:
             break;

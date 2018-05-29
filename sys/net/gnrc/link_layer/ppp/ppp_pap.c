@@ -18,9 +18,6 @@
 #include "net/gnrc/ppp/pap.h"
 #include "net/gnrc/ppp/ppp.h"
 
-#define ENABLE_DEBUG    (0)
-#include "debug.h"
-
 #define PAP_TIMEOUT (5000000)       /**< timeout of PAP configure request */
 #define DEFAULT_PAP_COUNTER (3)     /**< max attempts of PAP configuration */
 #define DEFAULT_APN_USER_SIZE (0)   /**< default APN user size (no user) */

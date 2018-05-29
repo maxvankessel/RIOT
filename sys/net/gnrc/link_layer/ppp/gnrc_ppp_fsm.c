@@ -243,34 +243,9 @@ static const char * print_event(uint8_t event)
     return "UNKOWN";
 }
 
-static const char * print_prot(int prot)
-{
-    switch(prot) {
-
-        case PROT_DCP:
-            return "DCP";
-
-        case PROT_LCP:
-            return "LCP";
-
-        case PROT_AUTH:
-            return "AUTH";
-
-        case PROT_IPCP:
-            return "IPCP";
-
-        case PROT_IPV4:
-            return "IPV4";
-
-        case PROT_UNDEF:
-        default:
-            return "UNDEF";
-    }
-}
-
 static void print_transition(int layer, int state, uint8_t event, int next_state)
 {
-    DEBUG(MODULE" %s state change %s -> %s, with event %s\n", print_prot(layer),
+    DEBUG(MODULE" %s state change %s -> %s, with event %s\n", ppp_protocol_to_string(layer),
             print_state(state), print_state(next_state), print_event(event));
 }
 #endif
@@ -377,6 +352,7 @@ void sca(gnrc_ppp_fsm_t *cp, void *args)
 void scn(gnrc_ppp_fsm_t *cp, void *args)
 {
     gnrc_pktsnip_t *pkt = (gnrc_pktsnip_t *) args;
+    lcp_hdr_t * hdr = (lcp_hdr_t *) pkt->next->data;
 
     gnrc_pktsnip_t *opts;
 
@@ -388,11 +364,11 @@ void scn(gnrc_ppp_fsm_t *cp, void *args)
     switch (type) {
         case GNRC_PPP_CONF_NAK:
             build_nak_pkt(cp, pkt, (uint8_t *)opts->data);
-            send_configure_nak(((gnrc_ppp_protocol_t *) cp)->dev, cp->prottype,((lcp_hdr_t *) pkt->next->data)->id, opts);
+            send_configure_nak(((gnrc_ppp_protocol_t *) cp)->dev, cp->prottype, hdr->id, opts);
             break;
         case GNRC_PPP_CONF_REJ:
             build_rej_pkt(cp, pkt, (uint8_t *) opts->data);
-            send_configure_rej(((gnrc_ppp_protocol_t *) cp)->dev, cp->prottype,((lcp_hdr_t *) pkt->next->data)->id, opts);
+            send_configure_rej(((gnrc_ppp_protocol_t *) cp)->dev, cp->prottype, hdr->id, opts);
             break;
         default:
             DEBUG(MODULE"shouldn't be here...\n");
@@ -540,7 +516,7 @@ static int _opt_is_ack(gnrc_ppp_fsm_t *cp, gnrc_ppp_option_t *opt)
 int handle_rcr(gnrc_ppp_fsm_t *cp, gnrc_pktsnip_t *pkt)
 {
     /* This packet doesn't have options, it's considered as valid. */
-    if (!pkt) {
+    if (pkt->size == 0) {
         return PPP_E_RCRp;
     }
 
@@ -734,23 +710,28 @@ static int handle_conf_pkt(gnrc_ppp_fsm_t *cp, int type, gnrc_pktsnip_t *pkt)
 {
     lcp_hdr_t *hdr = (lcp_hdr_t *) pkt->next->data;
 
+    cp->cr_sent_identifier = hdr->id;
+
     int event;
 
     switch (type) {
         case GNRC_PPP_CONF_REQ:
+            DEBUG(MODULE"handle received configure request\n");
             event = handle_rcr(cp, pkt);
             break;
         case GNRC_PPP_CONF_ACK:
+            DEBUG(MODULE"handle received configure ack\n");
             event = handle_rca(cp, hdr, pkt);
             break;
         case GNRC_PPP_CONF_NAK:
+            DEBUG(MODULE"handle received configure nak\n");
             event = handle_rcn_nak(cp, hdr, pkt);
             break;
         case GNRC_PPP_CONF_REJ:
+            DEBUG(MODULE"handle received configure reject\n");
             event = handle_rcn_rej(cp, hdr, pkt);
             break;
         default:
-            DEBUG("Shouldn't be here...\n");
             return -EBADMSG;
             break;
     }
@@ -778,9 +759,11 @@ int fsm_event_from_pkt(gnrc_ppp_fsm_t *cp, gnrc_pktsnip_t *pkt)
             event = PPP_E_RTR;
             break;
         case GNRC_PPP_TERM_ACK:
+            DEBUG(MODULE"handle termintate ack\n");
             event = handle_term_ack(cp, pkt);
             break;
         case GNRC_PPP_CODE_REJ:
+            DEBUG(MODULE"handle code reject\n");
             event = handle_coderej(hdr, pkt);
             break;
         case GNRC_PPP_ECHO_REQ:
@@ -806,16 +789,15 @@ int fsm_handle_ppp_msg(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *a
         case PPP_RECV:
             event = fsm_event_from_pkt(target, pkt);
             if (event > 0) {
-                trigger_fsm_event(target, event, pkt);
+                event = trigger_fsm_event(target, event, pkt);
             }
-            return event < 0 ? event : 0;
             break;
         case PPP_LINKUP:
             protocol->state = PROTOCOL_STARTING;
-            trigger_fsm_event(target, PPP_E_UP, NULL);
+            event = trigger_fsm_event(target, PPP_E_UP, NULL);
             break;
         case PPP_LINKDOWN:
-            trigger_fsm_event(target, PPP_E_DOWN, NULL);
+            event = trigger_fsm_event(target, PPP_E_DOWN, NULL);
             break;
         case PPP_UL_STARTED:
             if (target->state == PPP_S_OPENED) {
@@ -824,12 +806,12 @@ int fsm_handle_ppp_msg(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *a
             break;
         case PPP_TIMEOUT:
             if (target->restart_counter) {
-                trigger_fsm_event(target, PPP_E_TOp, NULL);
+                event = trigger_fsm_event(target, PPP_E_TOp, NULL);
             }
             else {
-                trigger_fsm_event(target, PPP_E_TOm, NULL);
+                event = trigger_fsm_event(target, PPP_E_TOm, NULL);
             }
             break;
     }
-    return 0;
+    return event;
 }
