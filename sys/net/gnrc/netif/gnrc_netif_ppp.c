@@ -31,9 +31,6 @@
 
 #include "byteorder.h"
 
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
-
 #if ENABLE_DEBUG
 /* For PRIu16 etc. */
 #include <inttypes.h>
@@ -210,6 +207,31 @@ gnrc_ppp_protocol_t *_get_prot_by_target(netdev_ppp_t *pppdev, gnrc_ppp_target_t
     return target_prot;
 }
 
+const char * ppp_protocol_to_string(int prot)
+{
+    switch(prot) {
+
+        case PROT_DCP:
+            return "DCP";
+
+        case PROT_LCP:
+            return "LCP";
+
+        case PROT_AUTH:
+            return "AUTH";
+
+        case PROT_IPCP:
+            return "IPCP";
+
+        case PROT_IPV4:
+            return "IPV4";
+
+        case PROT_UNDEF:
+        default:
+            return "UNDEF";
+    }
+}
+
 static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
 {
     int nbytes;
@@ -340,6 +362,8 @@ gnrc_ppp_target_t _get_target_from_protocol(uint16_t protocol)
 
 static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 {
+    int res = 0;
+
     netdev_ppp_t *dev = (netdev_ppp_t *)get_lowest_netdev(netif->dev);
     ppp_hdr_t *hdr = (ppp_hdr_t *)pkt->next->data;
 
@@ -353,7 +377,7 @@ static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             gnrc_pktsnip_t *lcp_hdr = gnrc_pktbuf_mark(pkt, sizeof(lcp_hdr_t), GNRC_NETTYPE_LCP);
 
             if(lcp_hdr) {
-                fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->lcp, PPP_RECV, pkt);
+                res = fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->lcp, PPP_RECV, pkt);
             }
             break;
         }
@@ -362,7 +386,7 @@ static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             gnrc_pktsnip_t *ipcp_hdr = gnrc_pktbuf_mark(pkt, sizeof(lcp_hdr_t), GNRC_NETTYPE_IPCP);
 
             if(ipcp_hdr) {
-                fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->ipcp, PPP_RECV, pkt);
+                res = fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->ipcp, PPP_RECV, pkt);
             }
             break;
         }
@@ -376,6 +400,10 @@ static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             break;
         default:
             DEBUG(MODULE"unrecognized target: %u\n", byteorder_ntohs(hdr->protocol));
+    }
+
+    if(res < 0) {
+        DEBUG(MODULE"%s dispatch returned error %d\n", ppp_protocol_to_string(target), res);
     }
 
     if(ret_pkt) {
@@ -487,6 +515,14 @@ void send_packet(netdev_ppp_t *dev, gnrc_pktsnip_t *payload)
         dev->netif->ops->send(dev->netif, payload);
 }
 
+void send_ppp_event(msg_t *msg, gnrc_ppp_msg_t ppp_msg)
+{
+    msg->type = GNRC_PPP_MSG_TYPE_EVENT;
+    msg->content.value = ppp_msg;
+    if(msg_send(msg, thread_getpid()) != 1) {
+        DEBUG("gnrc_ppp: message queue full, message discarded\n");
+    }
+}
 
 //#else   /* MODULE_NETDEV_PPP */
 //typedef int dont_be_pedantic;
