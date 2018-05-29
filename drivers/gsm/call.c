@@ -33,7 +33,7 @@
  */
 #define LOG_HEADER  "gsm_call: "
 
-int gsm_call_dial(gsm_t *dev, const char * number, bool is_voice_call)
+int gsm_call_dial_up(gsm_t *dev, const char * number, bool is_voice_call)
 {
     int result = -EINVAL;
 
@@ -53,10 +53,8 @@ int gsm_call_dial(gsm_t *dev, const char * number, bool is_voice_call)
 
         result = at_send_cmd_get_resp(&dev->at_dev, buf, buf, sizeof(buf), GSM_SERIAL_TIMEOUT_US * 5);
 
-        rmutex_unlock(&dev->mutex);
-
         if (result > 0) {
-            if (strcmp(buf, "CONNECT") == 0) {
+            if (strncmp(buf, "CONNECT", 7) == 0) {
                 result = 0;
 
                 if(!is_voice_call){
@@ -71,9 +69,21 @@ int gsm_call_dial(gsm_t *dev, const char * number, bool is_voice_call)
                 result = -1;
             }
         }
+
+        rmutex_unlock(&dev->mutex);
     }
 
     return result;
+}
+
+void gsm_call_dial_down(gsm_t *dev)
+{
+    if(dev) {
+        at_drain(&dev->at_dev);
+
+        /* switch to data mode requires another buffer */
+        dev->state = GSM_ON;
+    }
 }
 
 int __attribute__((weak)) gsm_call_switch_to_command_mode(gsm_t *dev)
@@ -81,11 +91,24 @@ int __attribute__((weak)) gsm_call_switch_to_command_mode(gsm_t *dev)
     int err = -EINVAL;
 
     if(dev) {
-        rmutex_lock(&dev->mutex);
+        if(dev->state == GSM_PPP) {
 
-        err = at_send_cmd_wait_ok(&dev->at_dev, "+++", GSM_SERIAL_TIMEOUT_US);
+            dev->state = GSM_ON;
 
-        rmutex_unlock(&dev->mutex);
+            rmutex_lock(&dev->mutex);
+
+            err = at_send_cmd_wait_ok(&dev->at_dev, "+++",
+                    GSM_SERIAL_TIMEOUT_US);
+
+            rmutex_unlock(&dev->mutex);
+
+            if(err != 0) {
+                dev->state = GSM_PPP;
+            }
+        }
+        else {
+            err = 0;
+        }
     }
 
     return err;
@@ -96,97 +119,30 @@ int __attribute__((weak)) gsm_call_switch_to_data_mode(gsm_t *dev)
     int err = -EINVAL;
 
     if(dev) {
-        char buf[GSM_AT_LINEBUFFER_SIZE];
+        if(dev->state == GSM_ON) {
+            char buf[GSM_AT_LINEBUFFER_SIZE];
 
-        rmutex_lock(&dev->mutex);
+            rmutex_lock(&dev->mutex);
 
-        err = at_send_cmd_get_resp(&dev->at_dev, "ATO0", buf, GSM_AT_LINEBUFFER_SIZE, GSM_SERIAL_TIMEOUT_US);
+            err = at_send_cmd_get_resp(&dev->at_dev, "ATO", buf,
+                    GSM_AT_LINEBUFFER_SIZE, GSM_SERIAL_TIMEOUT_US);
 
-        rmutex_unlock(&dev->mutex);
+            rmutex_unlock(&dev->mutex);
 
-        if(err > 0) {
-            if(strncmp(buf, "CONNECT", err) == 0) {
-                err = 0;
+            if(err > 0) {
+                if(strncmp(buf, "CONNECT", 7) == 0) {
+                    err = 0;
+
+                    dev->state = GSM_PPP;
+                } else {
+                    err = -1;
+                }
             }
-            else {
-                err = -1;
-            }
+        }
+        else {
+            err = 0;
         }
     }
 
     return err;
 }
-
-#ifdef GNRC_PPP
-
-static int _get(netdev_t *netdev, netopt_t opt, void *value, size_t max_len)
-{
-    int res = -ENOTSUP;
-    if (netdev == NULL) {
-        return -ENODEV;
-    }
-
-    switch (opt) {
-        case NETOPT_IS_WIRED:
-            res = 0;
-            break;
-        case NETOPT_DEVICE_TYPE:
-            assert(max_len == sizeof(uint16_t));
-            *((uint16_t *)value) = NETDEV_TYPE_PPPOS;
-            res = sizeof(uint16_t);
-            break;
-        default:
-            res = -ENOTSUP;
-    }
-
-    if (res == -ENOTSUP) {
-        res = netdev_ppp_get((netdev_ppp_t *)netdev, opt, value, max_len);
-    }
-
-    return res;
-}
-
-
-
-static int _set(netdev_t *netdev, netopt_t opt, const void *value,
-        size_t value_len)
-{
-    int res = -ENOTSUP;
-
-    network_uint32_t *nu32 = (network_uint32_t *) value;
-
-    if (netdev == NULL) {
-        return -ENODEV;
-    }
-
-    switch (opt) {
-        case NETOPT_PPP_ACCM_RX:
-            dev->accm.rx = byteorder_ntohl(*nu32);
-            res = sizeof(network_uint32_t);
-            break;
-        case NETOPT_PPP_ACCM_TX:
-            dev->accm.tx = byteorder_ntohl(*nu32);
-            res = sizeof(network_uint32_t);
-            break
-        default:
-            res = -ENOTSUP;
-    }
-
-    if (res == -ENOTSUP) {
-        res = netdev_ppp_set((netdev_ppp_t *)netdev, opt, value, value_len);
-    }
-
-    return res;
-}
-
-
-static const netdev_driver_t gsm_driver = {
-    .send = _send,
-    .recv = _recv,
-    .init = NULL,
-    .isr = _isr,
-    .get = _get,
-    .set = _set,
-};
-
-#endif

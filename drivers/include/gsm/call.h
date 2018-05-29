@@ -44,8 +44,14 @@
  * @return  0 on success
  * @return  < 0 on error
  */
-int gsm_call_dial(gsm_t *dev, const char * number, bool is_voice_call);
+int gsm_call_dial_up(gsm_t *dev, const char * number, bool is_voice_call);
 
+/**
+ * @brief Stop calling
+ *
+ * @param[in] dev   device to operate on
+ */
+void gsm_call_dial_down(gsm_t *dev);
 /**
  * @brief Switch from data mode to command mode
  *
