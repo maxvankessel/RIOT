@@ -50,7 +50,7 @@ int netdev_ppp_get(netdev_ppp_t *dev, netopt_t opt, void *value, size_t max_len)
             res = ((gnrc_ppp_protocol_t*) &dev->ipv4)->state == PROTOCOL_UP;
             *((uint8_t *) value) = res;
             break;
-        case NETOPT_LINK_STATE: {
+        case NETOPT_STATE: {
                 gnrc_ppp_protocol_t *dcp = (gnrc_ppp_protocol_t *) &dev->dcp;
                 *((netopt_enable_t *)value) = (dcp->state == PROTOCOL_DOWN) ?
                                               NETOPT_DISABLE : NETOPT_ENABLE;
@@ -87,7 +87,7 @@ int netdev_ppp_set(netdev_ppp_t *dev, netopt_t opt, const void *value, size_t va
             dev->pap.pass_size = value_len;
             res = 0;
             break;
-        case NETOPT_LINK_STATE:
+        case NETOPT_STATE:
             if (*((netopt_enable_t *)value) == NETOPT_DISABLE) {
                 /* set link down in device context
                  * should not require dispatch_ppp_msg */
