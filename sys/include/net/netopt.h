@@ -463,6 +463,13 @@ typedef enum {
     NETOPT_PPP_IS_IPV6_READY,
 
     /**
+     * @brief triggers a device driver dial up or hang up.
+     *
+     * Triggers dial up if enabled. Hang up if not. 
+     */
+    NETOPT_DIAL_UP,
+
+    /**
      * @brief   (@ref netopt_rf_testmode_t) Test mode for the radio, e.g. for CE or FCC certification
      *
      * Get/set the test mode as type @ref netopt_rf_testmode_t or as uint8_t if
