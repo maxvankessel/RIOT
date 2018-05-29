@@ -33,6 +33,10 @@
 #include "periph/gpio.h"
 #include "periph/uart.h"
 
+#ifdef MODULE_GSM_PPP
+#include "net/netdev/ppp.h"
+#endif
+
 #include "at.h"
 
 #ifdef __cplusplus
@@ -50,7 +54,7 @@ extern "C" {
  * @brief   gsm thread priority
  */
 #ifndef GSM_THREAD_PRIO
-#define GSM_THREAD_PRIO         (THREAD_PRIORITY_MAIN + 1)
+#define GSM_THREAD_PRIO         (THREAD_PRIORITY_MAIN - 1)
 #endif
 
 /**
@@ -91,7 +95,6 @@ enum {
     GSM_ON,             /**< GSM_ON */
     GSM_PPP,            /**< GSM_PPP point to point prot active */
     GSM_SLEEP,          /**< GSM_SLEEP */
-
 };
 
 /**
@@ -111,7 +114,7 @@ typedef struct gsm_params {
 } gsm_params_t;
 
 typedef struct gsm {
-#ifdef GNRC_PPP
+#if defined(MODULE_GSM_PPP) || defined(DOXYGEN)
     netdev_ppp_t netdev;                            /**< parent class */
 
     struct {

@@ -20,6 +20,8 @@
 #include "xtimer.h"
 #include "isrpipe.h"
 
+#include "include/ppp_internal.h"
+
 #ifdef GNRC_PPP
 #define ACCM_DEFAULT            (0xFFFFFFFFUL)
 #endif
@@ -42,7 +44,7 @@ static void * idle_thread(void *arg);
 
 static void creg_cb(void *arg, const char *buf);
 static void ring_cb(void *arg);
-static void dcd_cb(void *arg);
+//static void dcd_cb(void *arg);
 
 int gsm_init(gsm_t *dev, const gsm_params_t *params, const gsm_driver_t *driver)
 {
@@ -722,10 +724,14 @@ static void * idle_thread(void *arg)
     }
 
     while(1) {
+#ifdef MODULE_GSM_PPP
         if(dev->state == GSM_PPP) {
-            //gsm_ppp_handle(dev);
+            gsm_ppp_handle(dev);
+            xtimer_usleep(100 * US_PER_MS);
         }
-        else if (dev->state > GSM_OFF) {
+        else
+#endif
+        if (dev->state > GSM_OFF) {
             rmutex_lock(&dev->mutex);
             at_process_oob(&dev->at_dev);
             rmutex_unlock(&dev->mutex);
@@ -753,11 +759,11 @@ static void ring_cb(void *arg)
     }
 }
 
-static void dcd_cb(void *arg)
-{
-    if(arg) {
-        LOG_INFO(LOG_HEADER"data carrier\n");
-    }
-}
+//static void dcd_cb(void *arg)
+//{
+//    if(arg) {
+//        LOG_INFO(LOG_HEADER"data carrier\n");
+//    }
+//}
 
 
