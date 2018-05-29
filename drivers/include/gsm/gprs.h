@@ -97,6 +97,15 @@ int gsm_grps_activate_context(gsm_t *dev, uint8_t ctx);
 int gsm_grps_deactivate_context(gsm_t *dev, uint8_t ctx);
 
 /**
+ * @brief   Gets device address
+ *
+ * @param[in] dev   Device to operate on
+ *
+ * @return  ipv4 address
+ */
+uint32_t gsm_gprs_get_address(gsm_t *dev, uint8_t ctx);
+
+/**
  * @brief   Gets device network registration
  *
  * @param[in] dev   Device to operate on
