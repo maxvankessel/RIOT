@@ -17,11 +17,9 @@
  */
 #include "net/gnrc/ppp/ppp.h"
 
-#define ENABLE_DEBUG    (0)
-#define ENABLE_MONITOR (1)
-#include "debug.h"
+#define ENABLE_MONITOR (0)
 
-#define MONITOR_TIMEOUT (5000000) /**< timeout of PPP monitor */
+#define MONITOR_TIMEOUT (15000000) /**< timeout of PPP monitor */
 
 int dcp_handler(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
 {
