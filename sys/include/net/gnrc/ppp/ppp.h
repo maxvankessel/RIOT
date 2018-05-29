@@ -31,6 +31,9 @@
 #include "net/netdev/ppp.h"
 #include "sys/uio.h"
 
+#define ENABLE_DEBUG    (1)
+#include "debug.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -85,12 +88,9 @@ typedef enum {
 } gnrc_ppp_dev_event_t;
 
 
-static inline void send_ppp_event(msg_t *msg, gnrc_ppp_msg_t ppp_msg)
-{
-    msg->type = GNRC_PPP_MSG_TYPE_EVENT;
-    msg->content.value = ppp_msg;
-    msg_send(msg, thread_getpid());
-}
+void send_ppp_event(msg_t *msg, gnrc_ppp_msg_t ppp_msg);
+
+const char * ppp_protocol_to_string(int prot);
 
 static inline void send_ppp_event_xtimer(msg_t *msg, xtimer_t *xtimer, gnrc_ppp_msg_t ppp_msg, int timeout)
 {
