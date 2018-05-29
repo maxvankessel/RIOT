@@ -13,6 +13,8 @@
 #include "xtimer.h"
 #include "quectel.h"
 
+#include "gsm/call.h"
+
 /**
  * @ingroup     drivers_gsm_quectel
  * @{
@@ -118,7 +120,7 @@ int quectel_power_on(gsm_t *dev)
         }
 
         if(status){
-            (void)configure_interface_control;
+            (void)configure_interface_control(dev);
         }
 
         err = status ? 0 : -1;
@@ -226,3 +228,45 @@ const gsm_driver_t quectel_driver = {
     .sleep      = quectel_sleep,
     .reset      = quectel_reset,
 };
+
+int gsm_call_switch_to_command_mode(gsm_t *dev)
+{
+    int err = -EINVAL;
+
+    if(dev) {
+        if(dev->state == GSM_PPP) {
+
+            quectel_params_t *params = (quectel_params_t *)dev->params;
+
+            dev->state = GSM_ON;
+
+            rmutex_lock(&dev->mutex);
+
+            if(params->dtr_pin != GPIO_UNDEF) {
+                gpio_set(params->dtr_pin);
+
+                xtimer_usleep(100 * US_PER_MS);
+
+                gpio_clear(params->dtr_pin);
+
+                err = 0;
+            }
+            else {
+                err = at_send_cmd_wait_ok(&dev->at_dev, "+++",
+                GSM_SERIAL_TIMEOUT_US);
+            }
+
+            rmutex_unlock(&dev->mutex);
+
+            if(err != 0) {
+                dev->state = GSM_PPP;
+            }
+        }
+        else {
+            err = 0;
+        }
+    }
+
+    return err;
+}
+
