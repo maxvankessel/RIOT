@@ -115,7 +115,7 @@ int ipcp_init(netdev_t *dev)
     ipcp_fsm->restart_timer = GNRC_PPP_IPCP_RESTART_TIMER;
     ipcp_fsm->get_conf_by_code = &ipcp_get_conf_by_code;
     prot_ipcp->lower_layer = PROT_LCP;
-    prot_ipcp->upper_layer = PROT_IPV4;
+    prot_ipcp->upper_layer = PROT_IP;
     ipcp->ip_id = IPV4_DEFAULT_ID;
     return 0;
 }
@@ -243,9 +243,9 @@ int handle_ipv4(gnrc_ppp_protocol_t *protocol, uint8_t ppp_event, void *args)
 int ppp_ipv4_init(netdev_t *dev)
 {
     netdev_ppp_t *pppdev = (netdev_ppp_t*) dev;
-    gnrc_ppp_ipv4_t *ipv4 = (gnrc_ppp_ipv4_t *) &pppdev->ipv4;
+    gnrc_ppp_ipv4_t *ipv4 = (gnrc_ppp_ipv4_t *) &pppdev->ip;
 
-    ppp_protocol_init((gnrc_ppp_protocol_t*) ipv4, dev, handle_ipv4, PROT_IPV4);
+    ppp_protocol_init((gnrc_ppp_protocol_t*) ipv4, dev, handle_ipv4, PROT_IP);
     ipv4->tunnel_addr.u32 = byteorder_htonl(DEFAULT_TUNNEL_ADDRESS);
     ipv4->tunnel_port = DEFAULT_TUNNEL_PORT;
     return 0;
@@ -267,7 +267,7 @@ int _tunnel_is_set(gnrc_ppp_ipv4_t *ipv4)
 int ppp_ipv4_send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 {
     netdev_ppp_t *pppdev = (netdev_ppp_t*) netif->dev;
-    int ipv4_ready = ((gnrc_ppp_protocol_t *) &pppdev->ipv4)->state == PROTOCOL_UP;
+    int ipv4_ready = ((gnrc_ppp_protocol_t *) &pppdev->ip)->state == PROTOCOL_UP;
 
     if (!ipv4_ready) {
         DEBUG("gnrc_ppp: IPCP down. Dropping packet.\n");
@@ -275,7 +275,7 @@ int ppp_ipv4_send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         return -1;
     }
 
-    if (!_tunnel_is_set((gnrc_ppp_ipv4_t *) &pppdev->ipv4)) {
+    if (!_tunnel_is_set((gnrc_ppp_ipv4_t *) &pppdev->ip)) {
         printf("please add tunnel address and port\n");
         gnrc_pktbuf_release(pkt);
         return -1;
@@ -285,7 +285,7 @@ int ppp_ipv4_send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     /* Remove netif*/
     pkt = gnrc_pktbuf_remove_snip(pkt, pkt);
 
-    gnrc_pktsnip_t *send_pkt = _encapsulate_pkt((gnrc_ppp_ipv4_t *) &pppdev->ipv4, pkt);
+    gnrc_pktsnip_t *send_pkt = _encapsulate_pkt((gnrc_ppp_ipv4_t *) &pppdev->ip, pkt);
 
     netif->ops->send(netif, send_pkt);
     return 0;

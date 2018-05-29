@@ -11,8 +11,15 @@ USEMODULE += gsm_ppp
 
 USEMODULE += gnrc
 USEMODULE += gnrc_ppp
+#USEMODULE += gnrc_ppp_ipv6
 USEMODULE += gnrc_pktdump
 USEMODULE += gnrc_txtsnd
+
+USEMODULE += sock_dns
+USEMODULE += gnrc_sock_udp
+USEMODULE += posix
+
+USEMODULE += gnrc_ipv6_default
 
 
 CFLAGS_OPT=-O0

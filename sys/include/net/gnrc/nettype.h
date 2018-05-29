@@ -121,6 +121,7 @@ typedef enum {
     GNRC_NETTYPE_IPCP,  /**< Protocol is PPP IPCP */
     GNRC_NETTYPE_IPV4,  /**< Protocol is IPV4 encapsulated in HDLC frame */
     GNRC_NETTYPE_PAP,   /**< Protocol is PAP auth */
+    GNRC_NETTYPE_IPV6CP,  /**< Protocol is PPP IPCP */
 #endif
     /**
      * @}
@@ -287,6 +288,8 @@ static inline gnrc_nettype_t gnrc_nettype_from_ppp_protnum(uint16_t protnum)
 #   ifdef MODULE_GNRC_IPV6
         case PPPTYPE_IPV6:
             return GNRC_NETTYPE_IPV6;
+        case PPPTYPE_NCP_IPV6:
+            return GNRC_NETTYPE_IPV6CP;
 #   endif
 #endif
         default:
@@ -304,6 +307,8 @@ static inline uint16_t gnrc_nettype_to_ppp_protnum(gnrc_nettype_t type)
 #   ifdef MODULE_GNRC_IPV6
         case GNRC_NETTYPE_IPV6:
             return PPPTYPE_IPV6;
+        case GNRC_NETTYPE_IPV6CP:
+            return PPPTYPE_NCP_IPV6;
 #   endif
         case GNRC_NETTYPE_IPV4:
             return PPPTYPE_IPV4;

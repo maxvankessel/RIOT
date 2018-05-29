@@ -47,7 +47,7 @@ int netdev_ppp_get(netdev_ppp_t *dev, netopt_t opt, void *value, size_t max_len)
             res = 0;
             break;
         case NETOPT_PPP_IS_IPV6_READY:
-            res = ((gnrc_ppp_protocol_t*) &dev->ipv4)->state == PROTOCOL_UP;
+            res = ((gnrc_ppp_protocol_t*) &dev->ip)->state == PROTOCOL_UP;
             *((uint8_t *) value) = res;
             break;
         case NETOPT_STATE: {
@@ -69,14 +69,16 @@ int netdev_ppp_set(netdev_ppp_t *dev, netopt_t opt, const void *value, size_t va
     int res = -ENOTSUP;
 
     switch (opt) {
+#ifndef MODULE_GNRC_IPV6
         case NETOPT_TUNNEL_IPV4_ADDRESS:
-            dev->ipv4.tunnel_addr = *((ipv4_addr_t *) value);
+            dev->ip.tunnel_addr = *((ipv4_addr_t *) value);
             res = 0;
             break;
         case NETOPT_TUNNEL_UDP_PORT:
-            dev->ipv4.tunnel_port = *((uint16_t *) value);
+            dev->ip.tunnel_port = *((uint16_t *) value);
             res = 0;
             break;
+#endif
         case NETOPT_APN_USER:
             memcpy(dev->pap.username, value, value_len);
             dev->pap.user_size = value_len;

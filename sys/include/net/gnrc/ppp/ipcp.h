@@ -108,23 +108,6 @@ int ppp_ipv4_send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt);
  */
 gnrc_pktsnip_t *ppp_ipv4_recv(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt);
 
-
-/**
- * @brief get pointer of IPCP protocol
- *
- * @return pointer to IPCP protocol
- */
-gnrc_ppp_protocol_t *ipcp_get_static_pointer(void);
-
-
-
-/**
- * @brief get pointer of PPP IPv4 protocol
- *
- * @return pointer to PPP IPv4 protocol
- */
-gnrc_ppp_protocol_t *ipv4_get_static_pointer(void);
-
 #ifdef __cplusplus
 }
 #endif

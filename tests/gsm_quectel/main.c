@@ -19,6 +19,10 @@
 #include "net/hdlc.h"
 #include "net/netdev/layer.h"
 
+#include "arpa/inet.h"
+#include "net/sock/dns.h"
+#include "net/sock/util.h"
+
 #ifndef UART_MODEM
 #define UART_MODEM      MODEM_UART
 #endif
@@ -46,6 +50,11 @@
 #ifndef MODEM_DCD_PIN
 #define MODEM_DCD_PIN     GPIO_UNDEF
 #endif
+
+#ifndef DNS_SERVER
+#define DNS_SERVER  "[2001:db8::1]:53"
+#endif
+
 
 #define MAX_CMD_LEN 128
 
@@ -77,6 +86,10 @@ static char _ppp_stack[PPP_STACKSIZE];
 static hdlc_t _hdlc;
 
 static gnrc_netif_t *_iface;
+
+//static sock_udp_t _sock;
+
+sock_udp_ep_t sock_dns_server;
 
 int _at_send_handler(int argc, char **argv)
 {
@@ -114,7 +127,7 @@ int _modem_init_pdp_handler(int argc, char **argv)
     }
 
     gsm_gprs_setup_pdp_context((gsm_t *)&_modem, (uint8_t)atoi(argv[1]),
-            GSM_CONTEXT_IP, argv[2], (argv[3]) ? argv[3] : NULL,
+            GSM_CONTEXT_IPV6, argv[2], (argv[3]) ? argv[3] : NULL,
             (argv[4]) ? argv[4] : NULL);
     return 0;
 }
@@ -282,6 +295,42 @@ int _modem_rssi_handler(int argc, char **argv)
     return 0;
 }
 
+int _upd_handler(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+
+
+    //sock_udp_create(_sock, NULL, )
+
+    return 0;
+}
+
+int _dns_handler(int argc, char **argv)
+{
+    uint8_t addr[10];
+
+    if (argc < 2) {
+        printf("Usage: %s <command>\n", argv[0]);
+        return 1;
+    }
+
+    sock_udp_str2ep(&sock_dns_server, DNS_SERVER);
+
+    int res = sock_dns_query(argv[1], addr, AF_UNSPEC);
+
+    if(res == 0){
+        char addrstr[INET6_ADDRSTRLEN];
+        inet_ntop(res == 4 ? AF_INET : AF_INET6, addr, addrstr, sizeof(addrstr));
+        printf("%s resolves to %s\n", argv[1], addrstr);
+    }
+    else {
+        printf("error resolving %s\n", argv[1]);
+    }
+
+    return 0;
+}
+
 static const shell_command_t commands[] = {
     {"atcmd",        "Sends an AT cmd",     _at_send_handler},
     {"modem_status", "Print Modem status",  _modem_status_handler},
@@ -294,6 +343,8 @@ static const shell_command_t commands[] = {
     {"datamode",     "Switch to datamode",  _modem_datamode_handler },
     {"cmdmode",      "Switch to commandmode",_modem_cmdmode_handler },
     {"rssi",         "Get rssi",             _modem_rssi_handler },
+    {"udp",          "UDP handler",         _upd_handler },
+    {"dns",          "DNS handler",         _dns_handler },
     {NULL, NULL, NULL}
 };
 

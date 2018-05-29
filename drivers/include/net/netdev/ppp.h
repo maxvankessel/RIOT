@@ -27,7 +27,12 @@
 #include "net/gnrc/ppp/prot.h"
 #include "net/gnrc/ppp/lcp.h"
 #include "net/gnrc/ppp/pap.h"
+
+#if defined (MODULE_GNRC_PPP_IPV6)
+#include "net/gnrc/ppp/ipv6cp.h"
+#else
 #include "net/gnrc/ppp/ipcp.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,8 +65,16 @@ typedef struct netdev_ppp {
     gnrc_ppp_dcp_t dcp;                             /**< Control protocol for driver */
     gnrc_ppp_lcp_t lcp;                             /**< Link Control Protocol */
     gnrc_ppp_pap_t pap;                             /**< Password Authentication Protocol */
+
+#if defined (MODULE_GNRC_PPP_IPV6) || defined (DOXYGEN)
+    gnrc_ppp_ipv6cp_t ipcp;                  /**< IPv6 Network Control Protocol */
+    gnrc_ppp_ipv6_t ip;                  /**< Handler for IPv6 packets */
+#endif
+
+#if !defined (MODULE_GNRC_PPP_IPV6) || defined (DOXYGEN)
     gnrc_ppp_ipcp_t ipcp;                  /**< IPv4 Network Control Protocol */
-    gnrc_ppp_ipv4_t ipv4;                  /**< Handler for IPv4 packets */
+    gnrc_ppp_ipv4_t ip;                  /**< Handler for IPv4 packets */
+#endif
 
     gnrc_netif_t * netif;
 } netdev_ppp_t;

@@ -79,8 +79,14 @@ static void _gnrc_ppp_init(gnrc_netif_t *netif)
 
     dcp_init(dev);
     lcp_init(dev);
+
+#ifdef MODULE_GNRC_PPP_IPV6
+    ipv6cp_init(dev);
+    ppp_ipv6_init(dev);
+#else
     ipcp_init(dev);
     ppp_ipv4_init(dev);
+#endif
     pap_init(dev);
 
     ((netdev_ppp_t *)dev)->netif = netif;
@@ -171,11 +177,13 @@ int _prot_is_allowed(netdev_t *dev, uint16_t protocol)
         case PPPTYPE_LCP:
             return ((gnrc_ppp_protocol_t*) &pppdev->lcp)->state == PROTOCOL_STARTING || ((gnrc_ppp_protocol_t*) &pppdev->lcp)->state == PROTOCOL_UP;
         case PPPTYPE_NCP_IPV4:
+        case PPPTYPE_NCP_IPV6:
             return ((gnrc_ppp_protocol_t*) &pppdev->ipcp)->state == PROTOCOL_STARTING || ((gnrc_ppp_protocol_t*) &pppdev->ipcp)->state == PROTOCOL_UP;
         case PPPTYPE_PAP:
             return ((gnrc_ppp_protocol_t*) &pppdev->pap)->state == PROTOCOL_STARTING;
         case PPPTYPE_IPV4:
-            return ((gnrc_ppp_protocol_t*) &pppdev->ipv4)->state == PROTOCOL_UP;
+        case PPPTYPE_IPV6:
+            return ((gnrc_ppp_protocol_t*) &pppdev->ip)->state == PROTOCOL_UP;
     }
     return 0;
 }
@@ -191,8 +199,8 @@ gnrc_ppp_protocol_t *_get_prot_by_target(netdev_ppp_t *pppdev, gnrc_ppp_target_t
         case GNRC_PPP_BROADCAST_NCP:
             target_prot = (gnrc_ppp_protocol_t *) &pppdev->ipcp;
             break;
-        case PROT_IPV4:
-            target_prot = (gnrc_ppp_protocol_t *) &pppdev->ipv4;
+        case PROT_IP:
+            target_prot = (gnrc_ppp_protocol_t *) &pppdev->ip;
             break;
         case PROT_DCP:
         case GNRC_PPP_BROADCAST_LCP:
@@ -223,8 +231,8 @@ const char * ppp_protocol_to_string(int prot)
         case PROT_IPCP:
             return "IPCP";
 
-        case PROT_IPV4:
-            return "IPV4";
+        case PROT_IP:
+            return "IP";
 
         case PROT_UNDEF:
         default:
@@ -348,10 +356,12 @@ gnrc_ppp_target_t _get_target_from_protocol(uint16_t protocol)
             return PROT_LCP;
             break;
         case PPPTYPE_NCP_IPV4:
+        case PPPTYPE_NCP_IPV6:
             return PROT_IPCP;
             break;
         case PPPTYPE_IPV4:
-            return PROT_IPV4;
+        case PPPTYPE_IPV6:
+            return PROT_IP;
         case PPPTYPE_PAP:
             return PROT_AUTH;
         default:
@@ -382,8 +392,14 @@ static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             break;
         }
         case PROT_IPCP: {
+#ifndef MODULE_GNRC_PPP_IPV6
+            gnrc_nettype_t t = GNRC_NETTYPE_IPCP;
+#else
+            gnrc_nettype_t t = GNRC_NETTYPE_IPV6CP;
+#endif
+
             /* mark header */
-            gnrc_pktsnip_t *ipcp_hdr = gnrc_pktbuf_mark(pkt, sizeof(lcp_hdr_t), GNRC_NETTYPE_IPCP);
+            gnrc_pktsnip_t *ipcp_hdr = gnrc_pktbuf_mark(pkt, sizeof(lcp_hdr_t), t);
 
             if(ipcp_hdr) {
                 res = fsm_handle_ppp_msg((gnrc_ppp_protocol_t*)&dev->ipcp, PPP_RECV, pkt);
@@ -392,8 +408,12 @@ static int _gnrc_ppp_dispatch(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         }
 
             break;
-        case PROT_IPV4:
+        case PROT_IP:
+#ifdef MODULE_GNRC_PPP_IPV6
+            ret_pkt = ppp_ipv6_recv(netif, pkt);
+#else
             ret_pkt = ppp_ipv4_recv(netif, pkt);
+#endif
             break;
         case PROT_AUTH:
             pap_recv((gnrc_ppp_protocol_t*)&dev->pap, pkt);

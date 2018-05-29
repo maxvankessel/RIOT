@@ -47,7 +47,7 @@ typedef enum {
     PROT_LCP,       /**< ppp protocol is Link Control Protocol */
     PROT_AUTH,      /**< ppp protocol is PAP (CHAP not supported)*/
     PROT_IPCP,      /**< ppp protocol is Internet Protocol Control Protocol */
-    PROT_IPV4,      /**< ppp protocol is IPv4 packet encapsulator */
+    PROT_IP,      /**< ppp protocol is IP packet encapsulator */
     NUM_OF_PROTS    /**< number of ppp protocols */
     /* add more if necessary */
 } gnrc_ppp_protocol_id_t;
