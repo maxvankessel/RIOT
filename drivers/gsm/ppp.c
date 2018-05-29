@@ -16,36 +16,30 @@
 #include "net/hdlc.h"
 #include "net/netdev.h"
 
+#include "gsm/call.h"
 #include "isrpipe.h"
 
 #include "log.h"
 
+#include "gsm/ppp.h"
+#include "include/ppp_internal.h"
+
 #define MODULE  "gsm_ppp: "
 
 #define ACCM_DEFAULT            (0xFFFFFFFFUL)
+#define MINIMUM_LENGTH          (4)
 
 #define ESCAPE_P(accm, c)       ((c > 0x1f) ? c : ((accm) & (1 << c)) ? 0 : c)
 #define NEED_ESCAPE(accm, c)    ((c < 0x20) && ((accm) & (1 << c)))
 
-static void _rx_cb(void *arg, uint8_t byte)
+static int _init(netdev_t *netdev)
 {
-    gsm_t *dev = arg;
-    netdev_t *netdev = (netdev_t *)&dev->netdev;
+    gsm_t *dev = (gsm_t *)netdev;
 
-    if(ESCAPE_P(dev->accm.rx, byte)){
-        tsrb_add_one(&dev->inbuf, byte);
+    dev->accm.rx = ACCM_DEFAULT;
+    dev->accm.tx = ACCM_DEFAULT;
 
-        if((byte == HDLC_FLAG_SEQUENCE) && (tsrb_avail(&dev->inbuf) > 0)) {
-            /* new character */
-            if (netdev->event_callback != NULL) {
-                netdev->event_callback(netdev, NETDEV_EVENT_ISR);
-            }
-        }
-    }
-    else {
-        /* dropping accm chars */
-        LOG_INFO(MODULE"dropping accm char %x\n", byte);
-    }
+    return 0;
 }
 
 static int _send(netdev_t *netdev, const iolist_t *iolist)
@@ -64,13 +58,13 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
             if (NEED_ESCAPE(dev->accm.tx, *data)) {
                 uint8_t esc = HDLC_CONTROL_ESCAPE;
                 LOG_DEBUG("%02x ", esc);
-                uart_write(dev->config.uart, &esc, 1);
+                uart_write(dev->params->uart, &esc, 1);
                 *data ^= HDLC_SIX_CMPL;
 
                 bytes++;
             }
 
-            uart_write(dev->config.uart, data, 1);
+            uart_write(dev->params->uart, data, 1);
             LOG_DEBUG("%02x ", *data);
 
             bytes++;
@@ -92,8 +86,9 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
     if (buf == NULL) {
         if (len > 0) {
             /* remove data */
+            char t;
             for (; len > 0; len--) {
-                if (tsrb_get_one(&dev->inbuf) < 0) {
+                if (isrpipe_read((isrpipe_t *)&dev->at_dev, &t, 1) < 0) {
                     /* end early if end of ringbuffer is reached;
                      * len might be larger than the actual packet */
                     break;
@@ -102,11 +97,36 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
         }
         else {
             /* the user was warned not to use a buffer size > `INT_MAX` ;-) */
-            res = (int)tsrb_avail(&dev->inbuf);
+            res = (int)tsrb_avail((tsrb_t *)&dev->at_dev);
         }
     }
     else {
-        res = tsrb_get(&dev->inbuf, buf, len);
+        uint8_t byte;
+        uint8_t count = 0;
+
+        do {
+            if(isrpipe_read((isrpipe_t *)&dev->at_dev, (char *)&byte, 1) >= 0) {
+                if(ESCAPE_P(dev->accm.rx, byte)) {
+                    ((uint8_t *)buf)[count++] = byte;
+                    if(byte == HDLC_FLAG_SEQUENCE) {
+                        if(count > MINIMUM_LENGTH) {
+                            /* last of frame */
+                            LOG_DEBUG("%02x [IN] (%u)\n", byte, count);
+                            break;
+                        }
+                        else {
+                            LOG_DEBUG(MODULE);
+                        }
+                    }
+                    LOG_DEBUG("%02x ", byte);
+                } else {
+                    /* dropping accm chars */
+                    LOG_INFO(MODULE"dropping accm char %x\n", byte);
+                }
+            }
+        } while(count < len);
+
+        res = count;
     }
 
     return res;
@@ -124,7 +144,6 @@ static void _isr(netdev_t *dev)
 static int _get(netdev_t *netdev, netopt_t opt, void *value, size_t max_len)
 {
     int res = -ENOTSUP;
-    pppos_t *dev = (pppos_t *)netdev;
 
     if (netdev == NULL) {
         return -ENODEV;
@@ -172,6 +191,28 @@ static int _set(netdev_t *netdev, netopt_t opt, const void *value,
             res = sizeof(network_uint32_t);
             break;
 
+        case NETOPT_DIAL_UP:
+            if(value) {
+                /* dial up*/
+                res = gsm_call_dial_up(dev, value, false);
+
+                if(res >= 0) {
+                    if(netdev->event_callback != NULL) {
+                        netdev->event_callback(netdev, NETDEV_EVENT_LAYER_UP);
+                    }
+                }
+            }
+            else {
+                /* close con */
+                if(netdev->event_callback != NULL) {
+                    netdev->event_callback(netdev, NETDEV_EVENT_LAYER_DOWN);
+                }
+
+                gsm_call_dial_down(dev);
+                res = 0;
+            }
+            break;
+
         default:
             res = -ENOTSUP;
     }
@@ -186,7 +227,7 @@ static int _set(netdev_t *netdev, netopt_t opt, const void *value,
 static const netdev_driver_t gsm_ppp_driver = {
     .send = _send,
     .recv = _recv,
-    .init = NULL,
+    .init = _init,
     .isr = _isr,
     .get = _get,
     .set = _set,
@@ -194,17 +235,20 @@ static const netdev_driver_t gsm_ppp_driver = {
 
 void gsm_ppp_setup(gsm_t *dev)
 {
-    netdev_t *netdev = (netdev_t *)&dev->netdev;
-
-    dev->accm.rx = ACCM_DEFAULT;
-    dev->accm.tx = ACCM_DEFAULT;
+    netdev_t *netdev = (netdev_t *)dev;
 
     netdev->driver = &gsm_ppp_driver;
 }
 
 void gsm_ppp_handle(gsm_t *dev)
 {
-    isrpipe_try_read()
-}
+    if(!tsrb_empty((tsrb_t *)&dev->at_dev)) {
+        netdev_t *netdev = (netdev_t *)dev;
 
+        /* new character */
+        if (netdev->event_callback != NULL) {
+            netdev->event_callback(netdev, NETDEV_EVENT_ISR);
+        }
+    }
+}
 /** @} */

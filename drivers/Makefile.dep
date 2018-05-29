@@ -146,12 +146,18 @@ ifneq (,$(filter grove_ledbar,$(USEMODULE)))
   USEMODULE += my9221
 endif
 
-ifneq (,$(filter gsm_quectel,$(USEMODULE)))
+ifneq (,$(filter gsm,$(USEMODULE)))
+  FEATURES_REQUIRED += periph_uart
   FEATURES_REQUIRED += periph_gpio
+  USEMODULE += at
+  USEMODULE += fmt
+  USEMODULE += tsrb
+  USEMODULE += xtimer
 endif
 
-ifneq (,$(filter gsm_ublox,$(USEMODULE)))
-  FEATURES_REQUIRED += periph_gpio
+ifneq (,$(filter gsm_ppp,$(USEMODULE)))
+    USEMODULE += hdlc
+    USEMODULE += netdev_ppp
 endif
 
 ifneq (,$(filter hd44780,$(USEMODULE)))
