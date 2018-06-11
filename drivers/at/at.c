@@ -292,7 +292,6 @@ static int _check_urc(clist_node_t *node, void *arg)
         urc->cb(urc->arg, buf);
         return 1;
     }
-
     return 0;
 }
 
