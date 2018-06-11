@@ -184,11 +184,10 @@ uint32_t gsm_gprs_get_address(gsm_t *dev, uint8_t ctx)
                 sizeof(buf), GSM_SERIAL_TIMEOUT_US);
 
         if((res > 13) && strncmp(buf, "+CGPADDR:", 9) == 0) {
-            res -= 1; /* cut off " */
             buf[res] = '\0';
-            pos = strrchr(buf, '"');
+            pos = strrchr(buf, ',');
             if(pos != NULL) {
-                ipv4_addr_from_str((ipv4_addr_t *)&ip, pos);
+                ipv4_addr_from_str((ipv4_addr_t *)&ip, ++pos);
             }
         }
 
