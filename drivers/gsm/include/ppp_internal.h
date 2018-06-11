@@ -18,8 +18,8 @@
  *
  * @author  Max van Kessel
  */
-#ifndef GPRS_H
-#define GPRS_H
+#ifndef PPP_INTERNAL_H
+#define PPP_INTERNAL_H
 
 #include "gsm.h"
 
@@ -38,4 +38,4 @@ void gsm_ppp_handle(gsm_t *dev);
 }
 #endif
 
-#endif /* GPRS_H */
+#endif /* PPP_INTERNAL_H */
