@@ -20,11 +20,8 @@
 #include "xtimer.h"
 #include "isrpipe.h"
 
+#include "include/gsm_internal.h"
 #include "include/ppp_internal.h"
-
-#ifdef GNRC_PPP
-#define ACCM_DEFAULT            (0xFFFFFFFFUL)
-#endif
 
 /**
  * @ingroup     drivers_gsm
@@ -353,7 +350,7 @@ int gsm_check_operator(gsm_t *dev)
     return res;
 }
 
-size_t gsm_get_operator(gsm_t *dev, char *outbuf, size_t len)
+size_t gsm_get_operator(gsm_t *dev, char *outbuf, size_t len, uint8_t * tech)
 {
     char buf[GSM_AT_LINEBUFFER_SIZE];
     char *pos = buf;
@@ -386,6 +383,12 @@ size_t gsm_get_operator(gsm_t *dev, char *outbuf, size_t len)
                 }
                 else {
                     res = -ENOSPC;
+                }
+
+                if(tech) {
+                    if(*(++pos) == ',') {
+                        *tech = (uint8_t)scn_u32_dec(++pos, 1);
+                    }
                 }
             }
         }
@@ -524,7 +527,12 @@ ssize_t gsm_get_identification(gsm_t *dev, char *buf, size_t len)
     return res;
 }
 
-int gsm_get_signal(gsm_t *dev, unsigned *rssi, unsigned *ber)
+int __attribute__((weak)) gsm_signal_to_rssi(unsigned rssi)
+{
+    return (int)rssi;
+}
+
+int gsm_get_signal(gsm_t *dev, int *rssi, unsigned *ber)
 {
     char buf[32];
     char *pos = buf;
@@ -535,7 +543,7 @@ int gsm_get_signal(gsm_t *dev, unsigned *rssi, unsigned *ber)
             GSM_SERIAL_TIMEOUT_US);
     if ((res > 2) && strncmp(buf, "+CSQ: ", 6) == 0) {
         pos += 6; /* skip "+CSQ: " */
-        *rssi = scn_u32_dec(pos, 2);
+        *rssi = gsm_signal_to_rssi(scn_u32_dec(pos, 2));
         pos += 2 + (*rssi > 9); /* skip rssi value ( n, or nn,) */
         *ber = scn_u32_dec(pos, 2);
         res = 0;
@@ -625,7 +633,7 @@ ssize_t gsm_cmd(gsm_t *dev, const char *cmd, uint8_t *buf, size_t len, unsigned 
     rmutex_lock(&dev->mutex);
 
     ssize_t res = at_send_cmd_get_lines(&dev->at_dev, cmd, (char *)buf, len,
-            true, GSM_SERIAL_TIMEOUT_US * timeout);
+            true, (uint32_t)US_PER_SEC * timeout);
 
     rmutex_unlock(&dev->mutex);
 
@@ -668,11 +676,12 @@ void gsm_print_status(gsm_t *dev)
 
     res = gsm_get_registration(dev);
     if(res > 0) {
+        uint8_t tech = -1;
         printf(LOG_HEADER"registration code: %d\n", res);
 
-        res = gsm_get_operator(dev, buf, GSM_AT_LINEBUFFER_SIZE);
+        res = gsm_get_operator(dev, buf, GSM_AT_LINEBUFFER_SIZE, &tech);
         if(res >= 0) {
-            printf(LOG_HEADER"registered to \"%s\"\n", buf);
+            printf(LOG_HEADER"registered to \"%s\" (%d)\n", buf, tech);
         } else {
             printf(LOG_HEADER"no operator\n");
         }
@@ -680,27 +689,25 @@ void gsm_print_status(gsm_t *dev)
         printf(LOG_HEADER"not registered\n");
     }
 
-    unsigned rssi;
+    int rssi;
     unsigned ber;
     res = gsm_get_signal(dev, &rssi, &ber);
     if(res == 0) {
-        printf(LOG_HEADER"RSSI=%u ber=%u%%\n", rssi, ber);
+        printf(LOG_HEADER"RSSI= %ddBm ber=%u%%\n", rssi, ber);
     } else {
         printf(LOG_HEADER"error getting signal strength\n");
     }
 }
 
-void gsm_register_urc_callback(gsm_t *dev, const char * urc,
-                                    at_oob_cb_t cb, void * args)
+void gsm_register_urc_callback(gsm_t *dev, at_oob_t *oob)
 {
     if(dev) {
-        at_oob_t oob = {
-            .urc = urc,
-            .cb = cb,
-            .arg = args
-        };
 
-        at_add_oob(&dev->at_dev, &oob);
+        rmutex_lock(&dev->mutex);
+
+        at_add_oob(&dev->at_dev, oob);
+
+        rmutex_unlock(&dev->mutex);
     }
 }
 
@@ -718,28 +725,32 @@ static void * idle_thread(void *arg)
 
     assert(dev);
 
+    rmutex_lock(&dev->mutex);
+
     /* register all unsolicited result codes */
     for(i = 0; i < sizeof(oob) / sizeof(oob[0]); i++) {
         at_add_oob(&dev->at_dev, &oob[i]);
     }
 
+    rmutex_unlock(&dev->mutex);
+
     while(1) {
 #ifdef MODULE_GSM_PPP
         if(dev->state == GSM_PPP) {
+            rmutex_lock(&dev->mutex);
             gsm_ppp_handle(dev);
             xtimer_usleep(100 * US_PER_MS);
+            rmutex_unlock(&dev->mutex);
         }
         else
 #endif
-        if (dev->state > GSM_OFF) {
+        if (dev->state >= GSM_ON) {
             rmutex_lock(&dev->mutex);
             at_process_oob(&dev->at_dev);
             rmutex_unlock(&dev->mutex);
-            xtimer_sleep(1);
         }
-        else {
-            thread_sleep();
-        }
+
+        thread_sleep();
     }
 
     return NULL;
@@ -754,7 +765,7 @@ static void creg_cb(void *arg, const char *buf)
 static void ring_cb(void *arg)
 {
     if(arg){
-        LOG_INFO(LOG_HEADER"ring\n");
+        //LOG_INFO(LOG_HEADER"ring\n");
         thread_wakeup(((gsm_t *)arg)->pid);
     }
 }

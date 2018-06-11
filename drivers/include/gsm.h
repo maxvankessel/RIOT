@@ -320,11 +320,12 @@ int gsm_check_operator(gsm_t *dev);
  * @param[in]   dev     Device to operate on
  * @param[out]  outbuf  Buffer to store operator data in
  * @param[in]   len     Length of buffer
+ * @param[out]  tech    Access technology (may be NULL)
  *
  * @return  Length of data written into @p outbuf.
  * @return  < 0 for failure
  */
-size_t gsm_get_operator(gsm_t *dev, char *outbuf, size_t len);
+size_t gsm_get_operator(gsm_t *dev, char *outbuf, size_t len, uint8_t * tech);
 
 /**
  * @brief   gets International Mobile Equipment Identity (IMEI)
@@ -376,13 +377,13 @@ ssize_t gsm_get_identification(gsm_t *dev, char *buf, size_t len);
  * @brief   Gets modem signal quality
  *
  * @param[in]   dev     Device to write to
- * @param[out]  rssi    RSSI value
+ * @param[out]  rssi    RSSI value [dBm]
  * @param[out]  ber     Bearer value
  *
  * @return    0 for success
  * @return  < 0 for failure
  */
-int gsm_get_signal(gsm_t *dev, unsigned *rssi, unsigned *ber);
+int gsm_get_signal(gsm_t *dev, int *rssi, unsigned *ber);
 
 /**
  * @brief   Get registration value
@@ -433,12 +434,9 @@ void gsm_print_status(gsm_t *dev);
  * @brief Register a unsolicited result code
  *
  * @param[in] dev   device to operate on
- * @param[in] urc   unsolicited result code to act on
- * @param[in] cb    callback function
- * @param[in] args  arguments for the callback
+ * @param[in] oob   oob information
  */
-void gsm_register_urc_callback(gsm_t *dev, const char * urc,
-                                    at_oob_cb_t cb, void * args);
+void gsm_register_urc_callback(gsm_t *dev, at_oob_t *oob);
 
 #ifdef __cplusplus
 }

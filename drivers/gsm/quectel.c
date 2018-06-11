@@ -15,6 +15,8 @@
 
 #include "gsm/call.h"
 
+#include "include/gsm_internal.h"
+
 /**
  * @ingroup     drivers_gsm_quectel
  * @{
@@ -268,5 +270,24 @@ int gsm_call_switch_to_command_mode(gsm_t *dev)
     }
 
     return err;
+}
+
+int gsm_signal_to_rssi(unsigned signal)
+{
+    int rssi = 0;
+
+    if((signal != 99) && (signal != 199)) {
+        if(signal == 0) {
+            rssi = -113;
+        }
+        else if ((signal >= 1) && (signal <= 31)) {
+            rssi = (int)(2 * signal) - 113;
+        }
+        else if ((signal >= 100) && (signal <= 191)) {
+            rssi = (int)(signal) - 216;
+        }
+    }
+
+    return rssi;
 }
 
