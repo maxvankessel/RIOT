@@ -1,12 +1,12 @@
-
-#define AT_EOL            "\r\n"
-
+#include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 
+#include "at.h"
+#include "fmt.h"
+#include "board.h"
 #include "shell.h"
 #include "xtimer.h"
-#include "board.h"
 
 #include "quectel.h"
 #include "gsm/gprs.h"
@@ -15,13 +15,8 @@
 
 #include "net/gnrc.h"
 #include "net/gnrc/netif/ppp.h"
-#include "net/gnrc/pktdump.h"
 #include "net/hdlc.h"
 #include "net/netdev/layer.h"
-
-#include "arpa/inet.h"
-#include "net/sock/dns.h"
-#include "net/sock/util.h"
 
 #ifndef UART_MODEM
 #define UART_MODEM      MODEM_UART
@@ -51,12 +46,7 @@
 #define MODEM_DCD_PIN     GPIO_UNDEF
 #endif
 
-#ifndef DNS_SERVER
-#define DNS_SERVER  "[2001:db8::1]:53"
-#endif
-
-
-#define MAX_CMD_LEN 128
+#define MAX_CMD_LEN       (256)
 
 #define PPP_STACKSIZE       (THREAD_STACKSIZE_DEFAULT)
 #ifndef PPP_PRIO
@@ -87,21 +77,27 @@ static hdlc_t _hdlc;
 
 static gnrc_netif_t *_iface;
 
-//static sock_udp_t _sock;
+static int _connect_id;
 
-sock_udp_ep_t sock_dns_server;
+static xtimer_ticks32_t latency_ticks;
 
 int _at_send_handler(int argc, char **argv)
 {
     if (argc < 2) {
-        printf("Usage: %s <command>\n", argv[0]);
+        printf("Usage: %s <command>, [timeout]\n", argv[0]);
         return 1;
+    }
+
+    uint8_t timeout = 20;
+
+    if (argc > 2) {
+        timeout = (uint8_t)atoi(argv[2]);
     }
 
     uint8_t resp[MAX_CMD_LEN + 1];
     resp[MAX_CMD_LEN] = '\0';
 
-    gsm_cmd((gsm_t *)&_modem, argv[1], resp, sizeof(resp), 20);
+    gsm_cmd((gsm_t *)&_modem, argv[1], resp, MAX_CMD_LEN, timeout);
     puts((char *)resp);
 
     return 0;
@@ -127,7 +123,7 @@ int _modem_init_pdp_handler(int argc, char **argv)
     }
 
     gsm_gprs_setup_pdp_context((gsm_t *)&_modem, (uint8_t)atoi(argv[1]),
-            GSM_CONTEXT_IPV6, argv[2], (argv[3]) ? argv[3] : NULL,
+            GSM_CONTEXT_IP, argv[2], (argv[3]) ? argv[3] : NULL,
             (argv[4]) ? argv[4] : NULL);
     return 0;
 }
@@ -220,6 +216,30 @@ int _modem_radio_handler(int argc, char **argv)
     return 0;
 }
 
+int _modem_gprs_attach(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Usage: %s <on(1)/off(0)>\n", argv[0]);
+        return 1;
+    }
+
+    if(strncmp(argv[1], "1", 1) == 0) {
+        int result = gsm_grps_attach((gsm_t *)&_modem);
+
+        if(result == 0) {
+            printf("Attached\n");
+        }
+        else {
+            printf("Error %d", result);
+        }
+    }
+    else {
+        gsm_grps_detach((gsm_t *)&_modem);
+    }
+
+    return 0;
+}
+
 int _ppp_dialout_handler(int argc, char **argv)
 {
     int result = -1;
@@ -270,7 +290,7 @@ int _modem_ip_handler(int argc, char **argv)
     char buf[IPV4_ADDR_MAX_STR_LEN];
 
     if(argc < 2) {
-        printf("Usage: %s <context> <apn> [user [pass]]\n", argv[0]);
+        printf("Usage: %s <context>\n", argv[0]);
         return 1;
     }
 
@@ -286,49 +306,237 @@ int _modem_rssi_handler(int argc, char **argv)
     (void)argc;
     (void)argv;
 
-    unsigned rssi, ber;
+    int rssi;
+    unsigned ber;
 
-    gsm_get_signal((gsm_t *)&_modem, &rssi, &ber);
-
-    printf("RSSI=%u ber=%u%%\n", rssi, ber);
+    if(gsm_get_signal((gsm_t *)&_modem, &rssi, &ber) == 0) {
+        printf("RSSI= %ddBm ber=%u%%\n", rssi, ber);
+    }
+    else {
+        puts("Failed to get signal strength");
+    }
 
     return 0;
 }
 
-int _upd_handler(int argc, char **argv)
+static void udp_open(int argc, char **argv)
+{
+    gsm_t * m = (gsm_t *)&_modem;
+    int res;
+
+    if (argc < 5) {
+        printf("usage: %s %s <ctx> <domain> <port>\n", argv[0], argv[1]);
+        return;
+    }
+
+    char buf[128] = { 0 };
+    char *pos = buf;
+
+    pos += fmt_str(pos, "AT+QIOPEN=");
+    pos += fmt_str(pos, argv[2]);
+    pos += fmt_str(pos, ",0,");
+    pos += fmt_str(pos, "\"UDP\",\"");
+    pos += fmt_str(pos, argv[3]);
+    pos += fmt_str(pos, "\",");
+    pos += fmt_str(pos, argv[4]);
+    fmt_str(pos, ",0,0\0");
+
+    pos = buf;
+
+    res = at_send_cmd_wait_ok(&m->at_dev, buf, (uint32_t)(2 * US_PER_SEC));
+    if (res < 0) {
+        printf("failed to open socket\n");
+    }
+}
+
+static void udp_close(int argc, char **argv)
+{
+    int con = _connect_id;
+
+    if(argc > 1) {
+        con = atoi(argv[1]);
+    }
+
+    if(con != -1) {
+        gsm_t * m = (gsm_t *)&_modem;
+
+        char buf[32] = {0};
+        char *pos = buf;
+
+        pos += fmt_str(pos, "AT+QICLOSE=");
+        pos += fmt_s32_dec(pos, con);
+        *pos = '\0';
+
+        if(at_send_cmd_wait_ok(&m->at_dev, buf, 20 * US_PER_SEC) == 0) {
+            puts("closed");
+
+            if(con == _connect_id) {
+                _connect_id = -1;
+            }
+        }
+        else {
+            puts("failed to close");
+        }
+    }
+    else {
+        puts("not opnened");
+    }
+}
+
+static void udp_read(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
 
+    gsm_t * m = (gsm_t *)&_modem;
+    char buf[256] = { 0 };
+    char *pos = buf;
 
-    //sock_udp_create(_sock, NULL, )
+    pos += fmt_str(pos, "AT+QIRD=");
+    pos += fmt_s32_dec(pos, _connect_id);
+    pos += fmt_str(pos, ",");
+    pos += fmt_u32_dec(pos, sizeof(buf));
+    pos += fmt_str(pos, "\0");
+
+    pos = buf;
+
+    if(at_send_cmd_get_resp(&m->at_dev, buf, buf,
+            sizeof(buf), 2 * US_PER_SEC) <= 0) {
+        puts("failed to get data");
+    }
+    else {
+        int number_of_bytes = 0;
+        pos = strchr(buf, ' ');
+        if (isdigit((int)*(++pos))) {
+            number_of_bytes = atoi(pos);
+        }
+        ssize_t len = at_readline(&m->at_dev, buf, number_of_bytes + 2, false, 2 * US_PER_SEC);
+
+        printf("read: %s (%d)\n", buf, len);
+    }
+
+
+}
+
+static void udp_write(int argc, char **argv)
+{
+    gsm_t * m = (gsm_t *)&_modem;
+
+    if (argc < 3) {
+        printf("usage: %s %s <string>\n", argv[0], argv[1]);
+        return;
+    }
+
+    char buf[256] = { 0 };
+    char *pos = buf;
+
+    pos += fmt_str(pos, "AT+QISEND=");
+    pos += fmt_s32_dec(pos, _connect_id);
+    pos += fmt_str(pos, ",");
+    pos += fmt_s32_dec(pos, strlen(argv[2]));
+    pos += fmt_str(pos, "\0");
+
+    if (at_send_cmd_wait_prompt(&m->at_dev, buf, 20 * US_PER_SEC) < 0) {
+        int err;
+
+        at_drain(&m->at_dev);
+
+        at_send_bytes(&m->at_dev, argv[2], strlen(argv[2]));
+
+        if((err = at_expect_bytes(&m->at_dev, argv[2], (uint32_t)2 * US_PER_SEC)) == 0) {
+
+            err = at_readline(&m->at_dev, buf, sizeof(buf), false, (uint32_t)2 * US_PER_SEC);
+            if (err == 0) {
+                /* skip possible empty line */
+                err = at_readline(&m->at_dev, buf, sizeof(buf), false, (uint32_t)2 * US_PER_SEC);
+            }
+        }
+
+        if(err > 0) {
+            printf("response: %s\n", buf);
+
+            if(strncmp(buf, "SEND OK", 7) == 0) {
+                latency_ticks = xtimer_now();
+            }
+        }
+        else {
+            printf("failed to send, error number: %d\n", err);
+        }
+    }
+}
+
+int _upd_handler(int argc, char **argv)
+{
+    rmutex_lock(&_modem.base.mutex);
+
+    if(strcmp(argv[1], "open") == 0) {
+        udp_open(argc, argv);
+    }
+    else if(strcmp(argv[1], "close") == 0) {
+        udp_close(argc, argv);
+    }
+    else if(strcmp(argv[1], "recv") == 0) {
+        udp_read(argc, argv);
+    }
+    else if(strcmp(argv[1], "send") == 0) {
+        udp_write(argc, argv);
+    }
+    else {
+        printf("usage: %s open|close|recv|send\n", argv[0]);
+    }
+
+    rmutex_unlock(&_modem.base.mutex);
 
     return 0;
 }
 
-int _dns_handler(int argc, char **argv)
+static void urc_callback(void *arg, const char *urc)
 {
-    uint8_t addr[10];
+    (void)arg;
 
-    if (argc < 2) {
-        printf("Usage: %s <command>\n", argv[0]);
-        return 1;
+    if (strlen(urc) > 0) {
+        char * pos = strchr(urc, ' ');
+        if (pos) {
+            if(strncmp(++pos, "\"recv\"", 6) == 0) {
+
+                if(latency_ticks.ticks32 != 0) {
+                    xtimer_ticks32_t t = xtimer_diff(xtimer_now(), latency_ticks);
+
+                    uint32_t msec = xtimer_usec_from_ticks(t) / US_PER_MS;
+
+                    printf("new data received, latency %u msec\n", (unsigned int)msec);
+
+                    latency_ticks.ticks32 = 0;
+                }
+            }
+        }
     }
+}
 
-    sock_udp_str2ep(&sock_dns_server, DNS_SERVER);
+static void open_callback(void *arg, const char *urc)
+{
+    (void)arg;
+    ssize_t len = strlen(urc);
 
-    int res = sock_dns_query(argv[1], addr, AF_UNSPEC);
+    if (len > 0) {
+        int err = -EBADMSG;
 
-    if(res == 0){
-        char addrstr[INET6_ADDRSTRLEN];
-        inet_ntop(res == 4 ? AF_INET : AF_INET6, addr, addrstr, sizeof(addrstr));
-        printf("%s resolves to %s\n", argv[1], addrstr);
+        char * pos = strchr(urc, ',');
+        if (pos) {
+            err = atoi(++pos);
+            if (err == 0) {
+                pos = strchr(urc, ' ');
+                if (isdigit((int)*(++pos))) {
+                    _connect_id = atoi(pos);
+                }
+                printf("opened socket successfully\n");
+            }
+        }
+
+        if(err) {
+            printf("failed to open socket, %d\n", err);
+        }
     }
-    else {
-        printf("error resolving %s\n", argv[1]);
-    }
-
-    return 0;
 }
 
 static const shell_command_t commands[] = {
@@ -339,12 +547,13 @@ static const shell_command_t commands[] = {
     {"sim_status",   "Check sim status",    _modem_cpin_status_handler},
     {"power",        "Power (On/Off)",      _modem_power_handler},
     {"radio",        "Radio (On/Off)",      _modem_radio_handler},
+    {"attach",       "Attach(1), Detach(0)", _modem_gprs_attach },
     {"dial",         "PPP Dial out",        _ppp_dialout_handler},
     {"datamode",     "Switch to datamode",  _modem_datamode_handler },
     {"cmdmode",      "Switch to commandmode",_modem_cmdmode_handler },
     {"rssi",         "Get rssi",             _modem_rssi_handler },
+    {"addr",         "Get address",         _modem_ip_handler },
     {"udp",          "UDP handler",         _upd_handler },
-    {"dns",          "DNS handler",         _dns_handler },
     {NULL, NULL, NULL}
 };
 
@@ -354,6 +563,20 @@ int main(void)
 
     gsm_init((gsm_t *)&_modem, (gsm_params_t *)&params, &quectel_driver);
 
+    at_oob_t urc = {
+        .urc = "+QIURC: ",
+        .cb = urc_callback,
+        .arg = &_modem,
+    };
+    gsm_register_urc_callback((gsm_t *)&_modem, &urc);
+
+    at_oob_t open = {
+        .urc = "+QIOPEN: ",
+        .cb = open_callback,
+        .arg = &_modem,
+    };
+    gsm_register_urc_callback((gsm_t *)&_modem, &open);
+
     gsm_ppp_setup((gsm_t *)&_modem);
 
     hdlc_setup(&_hdlc);
@@ -361,18 +584,7 @@ int main(void)
     _iface = gnrc_netif_ppp_create(_ppp_stack, PPP_STACKSIZE, PPP_PRIO, "ppp",
             netdev_add_layer((netdev_t *)&_modem, (netdev_t *)&_hdlc));
 
-    gnrc_netreg_entry_t dump = GNRC_NETREG_ENTRY_INIT_PID(
-            GNRC_NETREG_DEMUX_CTX_ALL, gnrc_pktdump_pid);
-
     puts("PPP test");
-
-    /* register pktdump */
-    if(dump.target.pid <= KERNEL_PID_UNDEF) {
-        printf("Error starting pktdump thread");
-        return -1;
-    }
-
-    gnrc_netreg_register(GNRC_NETTYPE_PPP, &dump);
 
     /* start the shell */
     puts("Initialization OK, starting shell now");

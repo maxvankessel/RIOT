@@ -12,18 +12,11 @@ USEMODULE += gsm_ppp
 USEMODULE += gnrc
 USEMODULE += gnrc_ppp
 #USEMODULE += gnrc_ppp_ipv6
-USEMODULE += gnrc_pktdump
-USEMODULE += gnrc_txtsnd
-
-USEMODULE += sock_dns
-USEMODULE += gnrc_sock_udp
-USEMODULE += posix
-
-USEMODULE += gnrc_ipv6_default
-
 
 CFLAGS_OPT=-O0
 CFLAGS_DBG=-ggdb -g
+
+AT_PRINT_INCOMING ?= 1
 
 MODEM_UART     ?= "UART_NUMOF-1"
 MODEM_BAUDRATE ?= 115200
