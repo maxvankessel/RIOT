@@ -68,11 +68,11 @@ void ipv6cp_ipaddress_set(gnrc_ppp_fsm_t *ipcp, gnrc_ppp_option_t *opt, uint8_t 
     ppp_opt_get_payload(opt, (void **) &payload);
     if (!peer) {
         ((gnrc_ppp_ipv6cp_t *) ipcp)->ip.u64[0] = *((network_uint64_t *) payload);
-        ((gnrc_ppp_ipv6cp_t *) ipcp)->ip.u64[1] = (network_uint64_t)0xFE80000000000000ULL;
+        ((gnrc_ppp_ipv6cp_t *) ipcp)->ip.u64[1].u64 = 0xFE80000000000000ULL;
     }
     else {
         ((gnrc_ppp_ipv6cp_t *) ipcp)->local_ip.u64[0] = *((network_uint64_t *) payload);
-        ((gnrc_ppp_ipv6cp_t *) ipcp)->local_ip.u64[1] = (network_uint64_t)0xFE80000000000000ULL;
+        ((gnrc_ppp_ipv6cp_t *) ipcp)->local_ip.u64[1].u64 = 0xFE80000000000000ULL;
     }
 }
 
