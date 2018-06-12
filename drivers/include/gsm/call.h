@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -7,7 +7,6 @@
  */
 
 /**
- * @defgroup    drivers_gsm_call Call
  * @ingroup     drivers_gsm
  * @brief       A generic implementation of the GSM Call API
  *
@@ -16,11 +15,11 @@
  * @file
  * @brief   GSM-independent Call driver
  *
- * @author  Max van Kessel <maxvankessel@betronic.nl>
+ * @author  Max van Kessel
  */
 
-#ifndef CALL_H
-#define CALL_H
+#ifndef GSM_CALL_H
+#define GSM_CALL_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -72,4 +71,4 @@ int gsm_call_switch_to_command_mode(gsm_t *dev);
  */
 int gsm_call_switch_to_data_mode(gsm_t *dev);
 
-#endif /* CALL_H */
+#endif /* GSM_CALL_H */

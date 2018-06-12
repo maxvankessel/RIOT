@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 OTA keys S.A.
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -12,9 +13,10 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <fmt.h>
-#include "../include/gsm/sms.h"
+#include "fmt.h"
 #include "log.h"
+
+#include "gsm/sms.h"
 
 /**
  * @ingroup     drivers_gsm
@@ -23,7 +25,8 @@
  * @file
  * @brief       gsm sms implementation.
  *
- * @author      Max van Kessel <maxvankessel@betronic.nl>
+ * @author      Max van Kessel
+ * @author      Vincent Dupont <vincent@otakeys.com>
  *
  * @}
  */

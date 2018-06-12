@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -7,7 +7,6 @@
  */
 
 /**
- * @defgroup    drivers_gsm_gprs GPRS
  * @ingroup     drivers_gsm
  * @brief       A generic implementation of the GSM GPRS API
  *
@@ -16,10 +15,10 @@
  * @file
  * @brief   GSM-independent GPRS message driver
  *
- * @author  Max van Kessel <maxvankessel@betronic.nl>
+ * @author  Max van Kessel
  */
-#ifndef GPRS_H
-#define GPRS_H
+#ifndef GSM_GPRS_H
+#define GSM_GPRS_H
 
 #include <stdint.h>
 
@@ -119,4 +118,4 @@ int gsm_gprs_get_registration(gsm_t *dev);
 }
 #endif
 
-#endif /* GPRS_H */
+#endif /* GSM_GPRS_H */

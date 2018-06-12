@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2016 Kaspar Schleiser <kaspar@schleiser.de>
  * Copyright (C) 2018 OTA keys S.A.
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -20,7 +20,7 @@
  *
  * @author  Kaspar Schleiser <kaspar@schleiser.de>
  * @author  Vincent Dupont <vincent@otakeys.com>
- * @author  Max van Kessel <maxvankessel@betronic.nl>
+ * @author  Max van Kessel
  */
 #ifndef GSM_H
 #define GSM_H

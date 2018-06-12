@@ -1,13 +1,24 @@
 /*
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
  * details.
  */
 
-#ifndef GENERIC_H
-#define GENERIC_H
+/**
+ * @ingroup     drivers_gsm
+ * @brief       A generic implementation of the GSM driver
+ *
+ * @{
+ *
+ * @file
+ * @brief   GSM-independent driver
+ *
+ * @author  Max van Kessel
+ */
+#ifndef GSM_GENERIC_H
+#define GSM_GENERIC_H
 
 #include "gsm.h"
 
@@ -25,4 +36,4 @@ extern const generic_driver_t generic_driver;
 }
 #endif
 
-#endif /* GENERIC_H */
+#endif /* GSM_GENERIC_H */

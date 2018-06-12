@@ -15,14 +15,13 @@
 #include "ublox.h"
 
 /**
- * @ingroup     drivers_gsm_ublox
+ * @ingroup drivers_gsm_ublox
  * @{
  *
  * @file
- * @brief       Generic Ublox implementation.
+ * @brief   Generic Ublox implementation.
  *
- * @author
- *
+ * @author  Vincent Dupont <vincent@otakeys.com>
  * @}
  */
 

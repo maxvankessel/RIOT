@@ -14,13 +14,13 @@
  * @{
  *
  * @file
- * @brief
+ * @brief   U-Blox GSM driver
  *
- * @author
+ * @author  Vincent Dupont <vincent@otakeys.com>
  */
 
-#ifndef UBLOX_H
-#define UBLOX_H
+#ifndef GSM_UBLOX_H
+#define GSM_UBLOX_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -94,4 +94,4 @@ extern const gsm_driver_t ublox_driver;
 }
 #endif
 
-#endif /* QUECTEL_H */
+#endif /* GSM_UBLOX_H */

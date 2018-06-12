@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -24,7 +24,7 @@
  * @file
  * @brief       Generic Quectel implementation.
  *
- * @author      Max van Kessel <maxvankessel@betronic.nl>
+ * @author      Max van Kessel
  *
  * @}
  */

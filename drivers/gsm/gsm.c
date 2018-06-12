@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2016 Kaspar Schleiser <kaspar@schleiser.de>
  * Copyright (C) 2018 OTA keys S.A.
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -79,10 +79,6 @@ int gsm_init(gsm_t *dev, const gsm_params_t *params, const gsm_driver_t *driver)
             gpio_init_int(dev->params->ri_pin, GPIO_IN, GPIO_FALLING, ring_cb, dev);
         }
 
-#ifdef GNRC_PPP
-        dev->accm.rx = ACCM_DEFAULT;
-        dev->accm.tx = ACCM_DEFAULT;
-#endif
         dev->pid = thread_create(dev->stack, GSM_THREAD_STACKSIZE, GSM_THREAD_PRIO,
                 THREAD_CREATE_STACKTEST, idle_thread, dev, "gsm");
 
@@ -765,7 +761,6 @@ static void creg_cb(void *arg, const char *buf)
 static void ring_cb(void *arg)
 {
     if(arg){
-        //LOG_INFO(LOG_HEADER"ring\n");
         thread_wakeup(((gsm_t *)arg)->pid);
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -14,13 +14,13 @@
  * @{
  *
  * @file
- * @brief
+ * @brief   Quectel GSM driver
  *
- * @author  Max van Kessel <maxvankessel@betronic.nl>
+ * @author  Max van Kessel
  */
 
-#ifndef QUECTEL_H
-#define QUECTEL_H
+#ifndef GSM_QUECTEL_H
+#define GSM_QUECTEL_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -82,4 +82,4 @@ extern const gsm_driver_t quectel_driver;
 }
 #endif
 
-#endif /* QUECTEL_H */
+#endif /* GSM_QUECTEL_H */

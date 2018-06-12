@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2018 Max van Kessel <maxvankessel@betronic.nl>
+ * Copyright (C) 2018 OTA keys S.A.
+ * Copyright (C) 2018 Max van Kessel
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -7,7 +8,6 @@
  */
 
 /**
- * @defgroup    drivers_gsm_sms SMS
  * @ingroup     drivers_gsm
  * @brief       A generic implementation of the GSM SMS API
  *
@@ -16,10 +16,11 @@
  * @file
  * @brief   GSM-independent SMS message driver
  *
- * @author  Max van Kessel <maxvankessel@betronic.nl>
+ * @author  Max van Kessel
+ * @author  Vincent Dupont <vincent@otakeys.com>
  */
-#ifndef SMS_H
-#define SMS_H
+#ifndef GSM_SMS_H
+#define GSM_SMS_H
 
 #include <stdint.h>
 
@@ -107,4 +108,4 @@ int gsm_sms_enable_reception(gsm_sms_t * sms, gsm_sms_cb_t cb, void *arg);
 }
 #endif
 
-#endif /* SMS_H */
+#endif /* GSM_SMS_H */

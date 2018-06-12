@@ -7,7 +7,6 @@
  */
 
 /**
- * @defgroup    drivers_gsm_ppp Point to Point (over Serial)
  * @ingroup     drivers_gsm
  * @brief       A generic implementation of the GSM PPP(oS)
  *
